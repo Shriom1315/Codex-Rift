@@ -1,0 +1,822 @@
+/* =====================================================
+   CODEX HUNT — Main Application
+   ===================================================== */
+
+import { gameData } from './data.js';
+import { Router } from './router.js';
+import { createParticles, createOilLamp } from './effects.js';
+
+// --- App State ---
+const state = {
+  currentTeam: null,
+  round1: { currentRiddle: 0, solved: [], answers: {} },
+  round2: { currentLocation: 0, solved: [], codes: {} },
+  round3: { currentClue: 0, solved: [], codes: {} },
+  superpowers: { round1: false, round2: false },
+  timer: null,
+  timerValue: 0,
+};
+
+// --- Initialize ---
+window.addEventListener('DOMContentLoaded', () => {
+  createParticles();
+  createOilLamp();
+
+  const router = new Router({
+    '/': () => renderHome(),
+    '/login': () => renderLogin(),
+    '/round1': () => renderRound1(),
+    '/round2': () => renderRound2(),
+    '/round3': () => renderRound3(),
+    '/leaderboard': () => renderLeaderboard(),
+    '/victory': () => renderVictory(),
+  });
+
+  window.router = router;
+  window.state = state;
+  window.gameData = gameData;
+
+  router.init();
+});
+
+// --- Navigation ---
+function renderNav(activePage = '') {
+  return `
+    <nav class="ancient-nav">
+      <a class="nav-brand" onclick="router.navigate('/')">
+        <img src="/images/chakra-wheel.png" alt="Codex Hunt Chakra" />
+        <span class="nav-brand-text">Codex Hunt</span>
+      </a>
+      <div class="nav-links">
+        <a class="nav-link ${activePage === 'home' ? 'active' : ''}" onclick="router.navigate('/')">Home</a>
+        <a class="nav-link ${activePage === 'login' ? 'active' : ''}" onclick="router.navigate('/login')">Enter Sabha</a>
+        <a class="nav-link ${activePage === 'leaderboard' ? 'active' : ''}" onclick="router.navigate('/leaderboard')">Warriors</a>
+      </div>
+    </nav>
+    <div class="sanskrit-ticker">
+      <div class="ticker-content">
+        ${gameData.tickerShlokas.map(s => `<span>${s}</span>`).join('')}
+        ${gameData.tickerShlokas.map(s => `<span>${s}</span>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// --- Footer ---
+function renderFooter() {
+  return `
+    <footer class="ancient-footer">
+      <p class="footer-sanskrit">॥ यत्र धर्मस्तत्र जयः ॥</p>
+      <p class="footer-text">Codex Hunt • The Mahabharata Treasure Hunt • ${new Date().getFullYear()}</p>
+    </footer>
+  `;
+}
+
+// --- Divider ---
+function renderDivider(symbol = '☸') {
+  return `
+    <div class="divider">
+      <div class="divider-line"></div>
+      <span class="divider-symbol">${symbol}</span>
+      <div class="divider-line"></div>
+    </div>
+  `;
+}
+
+// =====================================================
+// HOME PAGE
+// =====================================================
+function renderHome() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav('home')}
+    <div class="page">
+      <!-- Hero -->
+      <section class="hero">
+        <div class="hero-content">
+          <h1 class="hero-title">Codex Hunt</h1>
+          <p class="hero-sanskrit">धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः</p>
+          <p class="hero-translation">"In the field of Dharma, in the field of Kuru, assembled and desiring to fight..."</p>
+          <p class="hero-subtitle">The Mahabharata Digital Treasure Hunt</p>
+          <button class="btn btn-primary" onclick="router.navigate('/login')">
+            ⟡ Enter The Sabha ⟡
+          </button>
+        </div>
+      </section>
+
+      <!-- About Section -->
+      <section class="section">
+        <p class="section-sanskrit">गीता सुगीता कर्तव्या किमन्यैः शास्त्रविस्तरैः</p>
+        <h2 class="section-title">The Sacred Quest</h2>
+        <p class="section-subtitle">Follow the path of the Pandavas through three divine trials. Decode ancient shlokas, solve mystical riddles, and prove yourself worthy of the Codex.</p>
+
+        ${renderDivider('॥')}
+
+        <!-- Rounds -->
+        <div class="rounds-grid">
+          <!-- Round 1 -->
+          <div class="round-card">
+            <div class="round-header">
+              <div class="round-number">Round I</div>
+              <h3 class="round-name">The Signal</h3>
+              <p class="round-sanskrit">संकेतः</p>
+            </div>
+            <div class="round-body">
+              <p class="round-description">
+                Like Dronacharya's test of the wooden bird, only the focused shall see the answer. 
+                Solve the aptitude riddles guided by sacred shlokas. The first to decode the laptop's mystery earns a divine superpower.
+              </p>
+              <ul class="round-features">
+                <li>5 riddles guided by Bhagavad Gita shlokas</li>
+                <li>Each answer unlocks a letter of the secret code</li>
+                <li>Decode the laptop screen to win the superpower</li>
+                <li>Remaining teams qualify by riddles solved</li>
+              </ul>
+              <div class="round-superpower">
+                <div class="superpower-label">⟡ Superpower ⟡</div>
+                <div class="superpower-name">Chakra of Sudarshana</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Round 2 -->
+          <div class="round-card">
+            <div class="round-header">
+              <div class="round-number">Round II</div>
+              <h3 class="round-name">The Hunt</h3>
+              <p class="round-sanskrit">अन्वेषणम्</p>
+            </div>
+            <div class="round-body">
+              <p class="round-description">
+                Like the Pandavas' exile in the forest, navigate through the terrain. Follow the riddles on your Sabha portal — each leads to a sacred location where divine codes await.
+              </p>
+              <ul class="round-features">
+                <li>3 location-based riddles on one floor</li>
+                <li>Each location holds a sacred code</li>
+                <li>Find all 3 codes to qualify for the final round</li>
+                <li>First team to finish earns the superpower</li>
+              </ul>
+              <div class="round-superpower">
+                <div class="superpower-label">⟡ Superpower ⟡</div>
+                <div class="superpower-name">Gandiva's Arrow</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Round 3 -->
+          <div class="round-card">
+            <div class="round-header">
+              <div class="round-number">Round III</div>
+              <h3 class="round-name">The Codex</h3>
+              <p class="round-sanskrit">कोडेक्सः</p>
+            </div>
+            <div class="round-body">
+              <p class="round-description">
+                The final battle of Kurukshetra! Like Arjuna on his chariot with Krishna, traverse the entire campus. 
+                Follow the shlokas, solve the riddles, and be the first to unlock the ancient Codex.
+              </p>
+              <ul class="round-features">
+                <li>5 campus-wide clues with Sanskrit shlokas</li>
+                <li>Each clue leads to the next sacred location</li>
+                <li>Solve all clues to reach the final Codex</li>
+                <li>The team who unlocks the Codex wins the hunt</li>
+              </ul>
+              <div class="round-superpower">
+                <div class="superpower-label">⟡ Victory Prize ⟡</div>
+                <div class="superpower-name">The Ancient Codex</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Rules Section -->
+      <section class="section">
+        <p class="section-sanskrit">नियमाः सर्वेषां समानाः</p>
+        <h2 class="section-title">Laws of the Sabha</h2>
+        <p class="section-subtitle">As Krishna laid down Dharma for the Pandavas, so shall these rules govern your quest.</p>
+
+        ${renderDivider('⟐')}
+
+        <div class="rounds-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+          <div class="ancient-card">
+            <h3 style="font-family: var(--font-display); color: var(--gold); margin-bottom: var(--space-md); font-size: 1.2rem;">☸ Team Rules</h3>
+            <ul class="round-features">
+              <li>Teams of 3-4 warriors each</li>
+              <li>One login per team — guard it wisely</li>
+              <li>No sharing answers between teams</li>
+              <li>Stay within the campus boundaries</li>
+            </ul>
+          </div>
+          <div class="ancient-card">
+            <h3 style="font-family: var(--font-display); color: var(--gold); margin-bottom: var(--space-md); font-size: 1.2rem;">⟡ Superpowers</h3>
+            <ul class="round-features">
+              <li>Earned by winning each round</li>
+              <li>Can be used in the next round only</li>
+              <li>Sudarshana Chakra — skip one riddle</li>
+              <li>Gandiva's Arrow — get a direct hint</li>
+            </ul>
+          </div>
+          <div class="ancient-card">
+            <h3 style="font-family: var(--font-display); color: var(--gold); margin-bottom: var(--space-md); font-size: 1.2rem;">◈ Fair Play</h3>
+            <ul class="round-features">
+              <li>No mobile phones during Round 1</li>
+              <li>No external help or internet searches</li>
+              <li>Respect the ancient codes — no cheating</li>
+              <li>Organizer's decision is final</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      ${renderFooter()}
+    </div>
+  `;
+}
+
+// =====================================================
+// LOGIN PAGE
+// =====================================================
+function renderLogin() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav('login')}
+    <div class="page login-page">
+      <div class="login-container">
+        <div class="login-card">
+          <img src="/images/chakra-wheel.png" alt="Chakra" class="login-chakra" />
+          <h2 class="login-title">Enter the Sabha</h2>
+          <p class="login-sanskrit">सभा प्रवेशः</p>
+
+          <form id="login-form" onsubmit="handleLogin(event)">
+            <div class="form-group">
+              <label class="form-label" for="team-name">Team Name</label>
+              <input class="form-input" type="text" id="team-name" placeholder="Enter your team name..." required />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="team-code">Secret Code</label>
+              <input class="form-input" type="password" id="team-code" placeholder="Enter the sacred code..." required />
+            </div>
+            <button class="btn btn-primary login-btn" type="submit">
+              ⟡ Enter the Sabha ⟡
+            </button>
+          </form>
+
+          <p class="login-ornament">॥ श्री कृष्णाय नमः ॥</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+window.handleLogin = function (e) {
+  e.preventDefault();
+  const teamName = document.getElementById('team-name').value.trim();
+  const teamCode = document.getElementById('team-code').value.trim();
+
+  const team = gameData.teams.find(t => t.name.toLowerCase() === teamName.toLowerCase() && t.code === teamCode);
+
+  if (team) {
+    state.currentTeam = team;
+    // Route based on team's current round
+    const round = team.currentRound || 1;
+    if (round === 1) router.navigate('/round1');
+    else if (round === 2) router.navigate('/round2');
+    else if (round === 3) router.navigate('/round3');
+    else router.navigate('/victory');
+  } else {
+    const input = document.getElementById('team-code');
+    input.classList.add('wrong');
+    input.value = '';
+    input.placeholder = 'Invalid credentials...';
+    setTimeout(() => {
+      input.classList.remove('wrong');
+      input.placeholder = 'Enter the sacred code...';
+    }, 1500);
+  }
+};
+
+// =====================================================
+// ROUND 1: THE SIGNAL
+// =====================================================
+function renderRound1() {
+  const riddles = gameData.round1Riddles;
+  const current = state.round1.currentRiddle;
+  const riddle = riddles[current];
+
+  if (!riddle) {
+    // All riddles solved — show completion
+    renderRound1Complete();
+    return;
+  }
+
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav()}
+    <div class="page signal-page">
+      <div class="signal-container">
+        <div class="text-center mb-3">
+          <p class="section-sanskrit">प्रथम चक्र — संकेतः</p>
+          <h2 class="section-title">Round I: The Signal</h2>
+          <span class="status-badge status-active">● Active</span>
+        </div>
+
+        ${renderDivider('⟡')}
+
+        <!-- Timer -->
+        <div class="timer-label">Time Elapsed</div>
+        <div class="timer-display" id="round1-timer">00:00</div>
+
+        <!-- Progress -->
+        <div class="riddle-progress">
+          ${riddles.map((_, i) => `
+            ${i > 0 ? `<div class="progress-connector ${i <= current ? 'active' : ''}"></div>` : ''}
+            <div class="progress-stone ${i < current ? 'completed' : ''} ${i === current ? 'active' : ''}">
+              ${i < current ? '' : i + 1}
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Riddle Card -->
+        <div class="riddle-card" key="${current}">
+          <div class="riddle-number-badge">${current + 1}</div>
+
+          <div class="shloka-block">
+            <p class="shloka-text">${riddle.shloka}</p>
+            <p class="shloka-translation">${riddle.translation}</p>
+          </div>
+
+          ${renderDivider('☸')}
+
+          <p class="riddle-text">${riddle.riddle}</p>
+
+          <div class="answer-form">
+            <input
+              type="text"
+              class="answer-input"
+              id="riddle-answer"
+              placeholder="ENTER ANSWER"
+              autocomplete="off"
+              autofocus
+            />
+            <button class="btn btn-primary submit-btn" onclick="checkRound1Answer()">
+              Submit
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  startTimer('round1-timer');
+
+  // Enter key listener
+  document.getElementById('riddle-answer').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') checkRound1Answer();
+  });
+}
+
+window.checkRound1Answer = function () {
+  const input = document.getElementById('riddle-answer');
+  const answer = input.value.trim().toUpperCase();
+  const riddle = gameData.round1Riddles[state.round1.currentRiddle];
+
+  if (answer === riddle.answer.toUpperCase()) {
+    input.classList.add('correct');
+    state.round1.solved.push(state.round1.currentRiddle);
+    state.round1.answers[state.round1.currentRiddle] = answer;
+    state.round1.currentRiddle++;
+
+    setTimeout(() => {
+      renderRound1();
+    }, 800);
+  } else {
+    input.classList.add('wrong');
+    input.value = '';
+    setTimeout(() => input.classList.remove('wrong'), 500);
+  }
+};
+
+function renderRound1Complete() {
+  const allAnswers = gameData.round1Riddles.map(r => r.answer);
+  const secretCode = allAnswers.map(a => a[0]).join('');
+
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav()}
+    <div class="page signal-page">
+      <div class="signal-container">
+        <div class="text-center mb-3">
+          <p class="section-sanskrit">प्रथम चक्र — सम्पूर्णम्</p>
+          <h2 class="section-title">Round I Complete!</h2>
+          <span class="status-badge status-completed">✓ Complete</span>
+        </div>
+
+        ${renderDivider('⟡')}
+
+        <div class="riddle-card" style="text-align: center;">
+          <h3 style="font-family: var(--font-display); color: var(--gold); font-size: 1.5rem; margin-bottom: var(--space-lg);">
+            The Secret Code Revealed
+          </h3>
+
+          <p style="font-family: var(--font-ui); font-size: 0.7rem; letter-spacing: 3px; color: var(--text-muted); text-transform: uppercase; margin-bottom: var(--space-md);">
+            Enter the code on the laptop to claim your superpower
+          </p>
+
+          <div class="code-input-group">
+            ${secretCode.split('').map(ch => `
+              <div class="code-char" style="display:flex;align-items:center;justify-content:center;pointer-events:none;">${ch}</div>
+            `).join('')}
+          </div>
+
+          <div class="round-superpower mt-2">
+            <div class="superpower-label">⟡ You have earned ⟡</div>
+            <div class="superpower-name">Chakra of Sudarshana</div>
+          </div>
+
+          <button class="btn btn-primary mt-3" onclick="router.navigate('/round2')">
+            Proceed to Round II →
+          </button>
+        </div>
+
+        <p class="text-center mt-2" style="font-family: var(--font-sanskrit); color: var(--gold); opacity: 0.6;">
+          ॥ कर्मण्येवाधिकारस्ते मा फलेषु कदाचन ॥
+        </p>
+      </div>
+    </div>
+  `;
+}
+
+// =====================================================
+// ROUND 2: THE MINI TREASURE HUNT
+// =====================================================
+function renderRound2() {
+  const locations = gameData.round2Locations;
+  const current = state.round2.currentLocation;
+  const location = locations[current];
+
+  if (!location) {
+    renderRound2Complete();
+    return;
+  }
+
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav()}
+    <div class="page hunt-page">
+      <div class="hunt-container">
+        <div class="text-center mb-3">
+          <p class="section-sanskrit">द्वितीय चक्र — अन्वेषणम्</p>
+          <h2 class="section-title">Round II: The Hunt</h2>
+          <span class="status-badge status-active">● Active</span>
+        </div>
+
+        ${renderDivider('☸')}
+
+        <!-- Timer -->
+        <div class="timer-label">Time Elapsed</div>
+        <div class="timer-display" id="round2-timer">00:00</div>
+
+        <!-- Location Tracker -->
+        <div class="location-tracker">
+          ${locations.map((loc, i) => `
+            ${i > 0 ? `<div class="location-path ${i <= current ? 'active' : ''}"></div>` : ''}
+            <div class="location-node">
+              <div class="location-icon ${i < current ? 'completed' : ''} ${i === current ? 'active' : ''}">
+                ${i < current ? '✓' : loc.icon}
+              </div>
+              <span class="location-label">${loc.shortName}</span>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Riddle Card -->
+        <div class="riddle-card" key="${current}">
+          <div class="riddle-number-badge">${current + 1}</div>
+
+          <div class="shloka-block">
+            <p class="shloka-text">${location.shloka}</p>
+            <p class="shloka-translation">${location.translation}</p>
+          </div>
+
+          ${renderDivider('◈')}
+
+          <p class="riddle-text">${location.riddle}</p>
+
+          <div class="code-entry">
+            <p class="code-label">Enter the Sacred Code Found at the Location</p>
+            <div style="max-width: 400px; margin: 0 auto;">
+              <div class="answer-form">
+                <input
+                  type="text"
+                  class="answer-input"
+                  id="location-code"
+                  placeholder="ENTER CODE"
+                  autocomplete="off"
+                  autofocus
+                />
+                <button class="btn btn-primary submit-btn" onclick="checkRound2Code()">
+                  Verify
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  startTimer('round2-timer');
+
+  document.getElementById('location-code').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') checkRound2Code();
+  });
+}
+
+window.checkRound2Code = function () {
+  const input = document.getElementById('location-code');
+  const code = input.value.trim().toUpperCase();
+  const location = gameData.round2Locations[state.round2.currentLocation];
+
+  if (code === location.code.toUpperCase()) {
+    input.classList.add('correct');
+    state.round2.solved.push(state.round2.currentLocation);
+    state.round2.codes[state.round2.currentLocation] = code;
+    state.round2.currentLocation++;
+
+    setTimeout(() => renderRound2(), 800);
+  } else {
+    input.classList.add('wrong');
+    input.value = '';
+    setTimeout(() => input.classList.remove('wrong'), 500);
+  }
+};
+
+function renderRound2Complete() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav()}
+    <div class="page hunt-page">
+      <div class="hunt-container">
+        <div class="text-center mb-3">
+          <p class="section-sanskrit">द्वितीय चक्र — सम्पूर्णम्</p>
+          <h2 class="section-title">Round II Complete!</h2>
+          <span class="status-badge status-completed">✓ Qualified</span>
+        </div>
+
+        ${renderDivider('⟡')}
+
+        <div class="riddle-card" style="text-align: center;">
+          <img src="/images/chakra-wheel.png" style="width: 80px; height: 80px; animation: slowSpin 10s linear infinite; margin-bottom: var(--space-xl); filter: drop-shadow(0 0 20px var(--glow-gold));" />
+
+          <h3 style="font-family: var(--font-display); color: var(--gold); font-size: 1.5rem; margin-bottom: var(--space-md);">
+            You Have Qualified!
+          </h3>
+
+          <p style="color: var(--text-secondary); font-style: italic; margin-bottom: var(--space-xl);">
+            Like the Pandavas emerging from Vanvaas, you have proven your worth. The final battle of Kurukshetra awaits.
+          </p>
+
+          <div class="round-superpower mb-3">
+            <div class="superpower-label">⟡ Reward ⟡</div>
+            <div class="superpower-name">Gandiva's Arrow</div>
+          </div>
+
+          <button class="btn btn-sindoor" onclick="router.navigate('/round3')">
+            ⚔ Enter Kurukshetra — Round III ⚔
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// =====================================================
+// ROUND 3: THE CODEX
+// =====================================================
+function renderRound3() {
+  const clues = gameData.round3Clues;
+  const current = state.round3.currentClue;
+  const clue = clues[current];
+
+  if (!clue) {
+    router.navigate('/victory');
+    return;
+  }
+
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav()}
+    <div class="page codex-page">
+      <div class="codex-container">
+        <div class="text-center mb-3">
+          <p class="section-sanskrit">अन्तिम चक्र — कोडेक्सः</p>
+          <h2 class="section-title">Round III: The Codex</h2>
+          <span class="status-badge status-active" style="border-color: rgba(201,76,76,0.3); color: var(--sindoor); background: rgba(201,76,76,0.1);">
+            ⚔ Final Round
+          </span>
+        </div>
+
+        ${renderDivider('⚔')}
+
+        <!-- Timer -->
+        <div class="timer-label">Time Elapsed</div>
+        <div class="timer-display" id="round3-timer">00:00</div>
+
+        <!-- Campus Map -->
+        <div class="campus-map">
+          <div class="map-title">Quest Progress — Campus Map</div>
+          <div class="map-path">
+            ${clues.map((c, i) => `
+              ${i > 0 ? `<span class="map-arrow ${i <= current ? 'active' : ''}">→</span>` : ''}
+              <div class="map-node">
+                <div class="map-dot ${i < current ? 'completed' : ''} ${i === current ? 'active' : ''} ${i > current ? 'locked' : ''}">
+                  ${i < current ? '✓' : i + 1}
+                </div>
+                <span class="map-dot-label">${c.locationName}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Clue Card -->
+        <div class="riddle-card" key="${current}">
+          <div class="riddle-number-badge" style="border-color: var(--sindoor); color: var(--sindoor); box-shadow: 0 0 20px var(--glow-sindoor);">
+            ${current + 1}
+          </div>
+
+          <div class="shloka-block" style="border-color: var(--sindoor-dark);">
+            <p class="shloka-text">${clue.shloka}</p>
+            <p class="shloka-translation">${clue.translation}</p>
+          </div>
+
+          ${renderDivider('⚔')}
+
+          <p class="riddle-text">${clue.riddle}</p>
+
+          <div class="code-entry" style="border-color: rgba(201,76,76,0.3);">
+            <p class="code-label">Enter the Code from ${clue.locationName}</p>
+            <div style="max-width: 400px; margin: 0 auto;">
+              <div class="answer-form">
+                <input
+                  type="text"
+                  class="answer-input"
+                  id="codex-code"
+                  placeholder="ENTER CODE"
+                  autocomplete="off"
+                  autofocus
+                  style="border-color: rgba(201,76,76,0.3);"
+                />
+                <button class="btn btn-sindoor submit-btn" onclick="checkRound3Code()">
+                  Verify
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  startTimer('round3-timer');
+
+  document.getElementById('codex-code').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') checkRound3Code();
+  });
+}
+
+window.checkRound3Code = function () {
+  const input = document.getElementById('codex-code');
+  const code = input.value.trim().toUpperCase();
+  const clue = gameData.round3Clues[state.round3.currentClue];
+
+  if (code === clue.code.toUpperCase()) {
+    input.classList.add('correct');
+    state.round3.solved.push(state.round3.currentClue);
+    state.round3.codes[state.round3.currentClue] = code;
+    state.round3.currentClue++;
+
+    setTimeout(() => renderRound3(), 800);
+  } else {
+    input.classList.add('wrong');
+    input.value = '';
+    setTimeout(() => input.classList.remove('wrong'), 500);
+  }
+};
+
+// =====================================================
+// VICTORY PAGE
+// =====================================================
+function renderVictory() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav()}
+    <div class="page victory-page">
+      <div class="victory-content">
+        <img src="/images/chakra-wheel.png" alt="Victory" class="victory-chakra" />
+        <h1 class="victory-title">Victory!</h1>
+        <p class="victory-sanskrit">॥ यत्र धर्मस्तत्र जयः ॥</p>
+        <p class="victory-subtitle">Where there is Dharma, there is Victory. You have unlocked the Ancient Codex and proven yourself worthy, O Warrior!</p>
+
+        ${renderDivider('☸')}
+
+        <div class="ancient-card" style="max-width: 500px; margin: var(--space-xl) auto; text-align: center;">
+          <h3 style="font-family: var(--font-display); color: var(--gold); font-size: 1.3rem; margin-bottom: var(--space-md);">The Codex Is Yours</h3>
+          <p style="color: var(--text-secondary); font-style: italic; margin-bottom: var(--space-lg);">
+            As Arjuna received the divine Pashupatastra from Lord Shiva, you have earned the ancient knowledge. 
+            Present this screen to the organizers to claim your prize.
+          </p>
+          <div style="font-family: var(--font-ui); font-size: 2rem; letter-spacing: 8px; color: var(--gold); text-shadow: 0 0 30px var(--glow-gold);">
+            CODEX✦UNLOCKED
+          </div>
+        </div>
+
+        <button class="btn btn-outline mt-3" onclick="router.navigate('/leaderboard')">
+          View Hall of Warriors
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// =====================================================
+// LEADERBOARD
+// =====================================================
+function renderLeaderboard() {
+  const teams = [...gameData.teams].sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav('leaderboard')}
+    <div class="page leaderboard-page">
+      <div class="leaderboard-container">
+        <div class="text-center mb-3" style="padding-top: var(--space-xl);">
+          <p class="section-sanskrit">॥ वीर गृहम् ॥</p>
+          <h2 class="section-title">Hall of Warriors</h2>
+          <p class="section-subtitle">The bravest warriors of the Sabha, ranked by their valor and wisdom.</p>
+        </div>
+
+        ${renderDivider('⟐')}
+
+        <table class="leaderboard-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Team</th>
+              <th>Round</th>
+              <th>Score</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${teams.map((team, i) => `
+              <tr>
+                <td>
+                  <span class="rank-badge rank-${i < 3 ? i + 1 : 'other'}">
+                    ${i + 1}
+                  </span>
+                </td>
+                <td>
+                  <div class="team-name-cell">
+                    <span style="font-weight: 600; color: var(--text-primary);">${team.name}</span>
+                    ${team.superpower ? `<span class="superpower-badge">${team.superpower}</span>` : ''}
+                  </div>
+                </td>
+                <td style="font-family: var(--font-ui); font-size: 0.75rem; letter-spacing: 1px;">
+                  Round ${team.currentRound || 1}
+                </td>
+                <td style="color: var(--gold); font-weight: 600;">
+                  ${team.score || 0}
+                </td>
+                <td>
+                  <span class="status-badge ${team.eliminated ? 'status-locked' : 'status-active'}">
+                    ${team.eliminated ? '✗ Eliminated' : '● Active'}
+                  </span>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      ${renderFooter()}
+    </div>
+  `;
+}
+
+// =====================================================
+// TIMER
+// =====================================================
+function startTimer(elementId) {
+  if (state.timer) clearInterval(state.timer);
+  state.timerValue = 0;
+
+  state.timer = setInterval(() => {
+    state.timerValue++;
+    const mins = String(Math.floor(state.timerValue / 60)).padStart(2, '0');
+    const secs = String(state.timerValue % 60).padStart(2, '0');
+    const el = document.getElementById(elementId);
+    if (el) el.textContent = `${mins}:${secs}`;
+    else clearInterval(state.timer);
+  }, 1000);
+}
