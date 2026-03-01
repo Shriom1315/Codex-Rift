@@ -5,6 +5,7 @@
 import { gameData } from './data.js';
 import { Router } from './router.js';
 import { createHeroShader } from './hero-shader.js';
+import { dbAdmin } from './firebase.js';
 
 // --- App State ---
 const state = {
@@ -15,6 +16,7 @@ const state = {
   superpowers: { round1: false, round2: false },
   timer: null,
   timerValue: 0,
+  adminLoggedIn: false,
 };
 
 // --- Initialize ---
@@ -29,6 +31,7 @@ window.addEventListener('DOMContentLoaded', () => {
     '/round3': () => renderRound3(),
     '/leaderboard': () => renderLeaderboard(),
     '/victory': () => renderVictory(),
+    '/admin': () => renderAdmin(),
   });
 
   window.router = router;
@@ -44,7 +47,7 @@ function renderNav(activePage = '') {
     <nav class="ancient-nav">
       <a class="nav-brand" onclick="router.navigate('/')">
         <img src="/images/chakra-wheel.png" alt="Codex Hunt Chakra" />
-        <span class="nav-brand-text">Codex Hunt</span>
+        <span class="nav-brand-text">Codex Rift</span>
       </a>
       <div class="nav-links">
         <a class="nav-link ${activePage === 'home' ? 'active' : ''}" onclick="router.navigate('/')">Home</a>
@@ -66,7 +69,7 @@ function renderFooter() {
   return `
     <footer class="ancient-footer">
       <p class="footer-sanskrit">॥ यत्र धर्मस्तत्र जयः ॥</p>
-      <p class="footer-text">Codex Hunt • The Mahabharata Treasure Hunt • ${new Date().getFullYear()}</p>
+      <p class="footer-text">Codex Rift • The Mahabharata Treasure Hunt • ${new Date().getFullYear()}</p>
     </footer>
   `;
 }
@@ -93,7 +96,7 @@ function renderHome() {
       <!-- Hero -->
       <section class="hero">
         <div class="hero-content">
-          <h1 class="hero-title">Codex Hunt</h1>
+          <h1 class="hero-title">Codex Rift</h1>
           <p class="hero-sanskrit">धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः</p>
           <p class="hero-translation">"In the field of Dharma, in the field of Kuru, assembled and desiring to fight..."</p>
           <p class="hero-subtitle">The Mahabharata Digital Treasure Hunt</p>
@@ -327,14 +330,14 @@ function renderRound1() {
           ${riddles.map((_, i) => `
             ${i > 0 ? `<div class="progress-connector ${i <= current ? 'active' : ''}"></div>` : ''}
             <div class="progress-stone ${i < current ? 'completed' : ''} ${i === current ? 'active' : ''}">
-              ${i < current ? '' : i + 1}
+              <span class="unrotate">${i < current ? '' : i + 1}</span>
             </div>
           `).join('')}
         </div>
 
         <!-- Riddle Card -->
         <div class="riddle-card" key="${current}">
-          <div class="riddle-number-badge">${current + 1}</div>
+          <div class="riddle-number-badge"><span class="unrotate">${current + 1}</span></div>
 
           <div class="shloka-block">
             <p class="shloka-text">${riddle.shloka}</p>
@@ -478,7 +481,7 @@ function renderRound2() {
             ${i > 0 ? `<div class="location-path ${i <= current ? 'active' : ''}"></div>` : ''}
             <div class="location-node">
               <div class="location-icon ${i < current ? 'completed' : ''} ${i === current ? 'active' : ''}">
-                ${i < current ? '✓' : loc.icon}
+                <span class="unrotate">${i < current ? '✓' : loc.icon}</span>
               </div>
               <span class="location-label">${loc.shortName}</span>
             </div>
@@ -487,7 +490,7 @@ function renderRound2() {
 
         <!-- Riddle Card -->
         <div class="riddle-card" key="${current}">
-          <div class="riddle-number-badge">${current + 1}</div>
+          <div class="riddle-number-badge"><span class="unrotate">${current + 1}</span></div>
 
           <div class="shloka-block">
             <p class="shloka-text">${location.shloka}</p>
@@ -626,7 +629,7 @@ function renderRound3() {
               ${i > 0 ? `<span class="map-arrow ${i <= current ? 'active' : ''}">→</span>` : ''}
               <div class="map-node">
                 <div class="map-dot ${i < current ? 'completed' : ''} ${i === current ? 'active' : ''} ${i > current ? 'locked' : ''}">
-                  ${i < current ? '✓' : i + 1}
+                  <span class="unrotate">${i < current ? '✓' : i + 1}</span>
                 </div>
                 <span class="map-dot-label">${c.locationName}</span>
               </div>
@@ -636,8 +639,8 @@ function renderRound3() {
 
         <!-- Clue Card -->
         <div class="riddle-card" key="${current}">
-          <div class="riddle-number-badge" style="border-color: var(--sindoor); color: var(--sindoor); box-shadow: 0 0 20px var(--glow-sindoor);">
-            ${current + 1}
+          <div class="riddle-number-badge" style="border-color: var(--sindoor); color: var(--sindoor);">
+            <span class="unrotate">${current + 1}</span>
           </div>
 
           <div class="shloka-block" style="border-color: var(--sindoor-dark);">
@@ -814,4 +817,164 @@ function startTimer(elementId) {
     if (el) el.textContent = `${mins}:${secs}`;
     else clearInterval(state.timer);
   }, 1000);
+}
+
+// =====================================================
+// ADMIN (Serverless)
+// =====================================================
+let unsubscribeTeams = null;
+let unsubscribeGame = null;
+
+window.handleAdminLogin = (e) => {
+  e.preventDefault();
+  const pass = document.getElementById('admin-pass').value;
+  if (pass === 'admin123') { // requested default
+    state.adminLoggedIn = true;
+    renderAdmin();
+  } else {
+    alert('Invalid Admin Ritual');
+  }
+};
+
+window.adminCreateGame = async () => {
+  const btn = document.getElementById('btn-create-game');
+  btn.innerText = 'Creating...';
+  await dbAdmin.createGame();
+  btn.innerText = 'Game Created';
+};
+
+window.adminAddTeam = async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('admin-team-name').value;
+  const code = document.getElementById('admin-team-code').value;
+
+  const success = await dbAdmin.addTeam(name, code);
+  if (success) {
+    document.getElementById('admin-team-name').value = '';
+    document.getElementById('admin-team-code').value = '';
+    alert('Team Add Successful!');
+  } else {
+    alert('Failed to add team');
+  }
+};
+
+window.adminSetStatus = async (id, status) => {
+  await dbAdmin.updateTeamStatus(id, status);
+};
+
+window.adminUpdateScore = async (id) => {
+  const newScore = prompt('Enter new score:');
+  if (newScore && !isNaN(newScore)) {
+    await dbAdmin.updateTeamScore(id, newScore);
+  }
+};
+
+function renderAdmin() {
+  const app = document.getElementById('app');
+  if (!state.adminLoggedIn) {
+    app.innerHTML = `
+      ${renderNav('admin')}
+      <div class="page login-page">
+        <div class="login-container">
+          <div class="login-card">
+            <h2 class="login-title">Admin Login</h2>
+            <form onsubmit="handleAdminLogin(event)">
+              <div class="form-group">
+                <label class="form-label" for="admin-pass">Secret Password</label>
+                <input class="form-input" type="password" id="admin-pass" placeholder="Enter strictly..." required />
+              </div>
+              <button type="submit" class="btn btn-primary login-btn">Authenticate</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Dashboard View
+  app.innerHTML = `
+    ${renderNav('admin')}
+    <div class="page" style="padding-top:20px; padding-bottom:50px;">
+      <section class="section">
+        <h2 class="section-title">Admin Sabha</h2>
+        <div class="rounds-grid">
+          
+          <div class="ancient-card">
+            <h3 style="color:var(--gold); margin-bottom:10px; font-family:var(--font-ui);">Game Control</h3>
+            <button id="btn-create-game" class="btn btn-primary" onclick="adminCreateGame()">Create/Reset Game</button>
+            <p style="margin-top:10px; font-size:0.8rem; color:var(--text-muted);" id="admin-game-status">Game Status: Unknown</p>
+          </div>
+
+          <div class="ancient-card">
+            <h3 style="color:var(--gold); margin-bottom:10px; font-family:var(--font-ui);">Add Team</h3>
+            <form onsubmit="adminAddTeam(event)" style="display:flex; flex-direction:column; gap:10px;">
+              <input class="form-input" id="admin-team-name" placeholder="Team Name" required />
+              <input class="form-input" id="admin-team-code" placeholder="Secret Access Code" required />
+              <button type="submit" class="btn btn-sindoor">Add Team to Lobby</button>
+            </form>
+          </div>
+        </div>
+        
+        <div class="ancient-card" style="margin-top:20px; overflow-x:auto;">
+          <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-ui);">Lobby & Teams</h3>
+          <table class="leaderboard-table" style="width:100%;">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Code</th>
+                <th>Status</th>
+                <th>Score</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="admin-teams-list">
+              <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  `;
+
+  // Init Realtime Listeners
+  if (unsubscribeTeams) unsubscribeTeams();
+  if (unsubscribeGame) unsubscribeGame();
+
+  unsubscribeGame = dbAdmin.listenToGame((game) => {
+    const el = document.getElementById('admin-game-status');
+    if (el) {
+      if (game) {
+        el.innerText = `Game Active: Round ${game.currentRound}`;
+      } else {
+        el.innerText = 'Game Status: Offline';
+      }
+    }
+  });
+
+  unsubscribeTeams = dbAdmin.listenToTeams((teams) => {
+    const list = document.getElementById('admin-teams-list');
+    if (!list) return;
+
+    // Sort by score
+    teams.sort((a, b) => b.score - a.score);
+
+    list.innerHTML = teams.map(t => `
+      <tr>
+        <td>${t.name}</td>
+        <td style="color:var(--gold-dark);">${t.code}</td>
+        <td>
+           <span style="color: ${t.status === 'qualified' ? 'var(--success-light)' : t.status === 'disqualified' ? 'var(--sindoor)' : 'var(--text-muted)'};">
+             ${t.status.toUpperCase()}
+           </span>
+        </td>
+        <td>${t.score}</td>
+        <td style="display:flex; gap:10px;">
+          <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem;" onclick="adminUpdateScore('${t.id}')">Score</button>
+          <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem; color:var(--success-light); border-color:var(--success-light);" onclick="adminSetStatus('${t.id}', 'qualified')">Q</button>
+          <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem; color:var(--sindoor); border-color:var(--sindoor);" onclick="adminSetStatus('${t.id}', 'disqualified')">DQ</button>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="5" style="text-align:center;">No teams found</td></tr>';
+  });
 }

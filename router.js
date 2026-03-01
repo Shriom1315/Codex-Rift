@@ -18,10 +18,16 @@ export class Router {
     }
 
     handleRoute() {
-        const hash = window.location.hash.slice(1) || '/';
-        this.currentPath = hash;
+        // Fallback: If someone visits /admin directly without the #
+        let path = window.location.hash.slice(1);
+        if (!path) {
+            const pathname = window.location.pathname;
+            path = pathname !== '/' ? pathname : '/';
+        }
 
-        const handler = this.routes[hash];
+        this.currentPath = path;
+
+        const handler = this.routes[path];
         if (handler) {
             // Scroll to top
             window.scrollTo(0, 0);
