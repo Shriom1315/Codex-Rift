@@ -4,7 +4,7 @@
 
 import { gameData } from './data.js';
 import { Router } from './router.js';
-import { createParticles, createOilLamp } from './effects.js';
+import { createHeroShader } from './hero-shader.js';
 
 // --- App State ---
 const state = {
@@ -19,8 +19,7 @@ const state = {
 
 // --- Initialize ---
 window.addEventListener('DOMContentLoaded', () => {
-  createParticles();
-  createOilLamp();
+  createHeroShader('page-shader-canvas');
 
   const router = new Router({
     '/': () => renderHome(),
@@ -110,8 +109,6 @@ function renderHome() {
         <h2 class="section-title">The Sacred Quest</h2>
         <p class="section-subtitle">Follow the path of the Pandavas through three divine trials. Decode ancient shlokas, solve mystical riddles, and prove yourself worthy of the Codex.</p>
 
-        ${renderDivider('॥')}
-
         <!-- Rounds -->
         <div class="rounds-grid">
           <!-- Round 1 -->
@@ -195,8 +192,6 @@ function renderHome() {
         <p class="section-sanskrit">नियमाः सर्वेषां समानाः</p>
         <h2 class="section-title">Laws of the Sabha</h2>
         <p class="section-subtitle">As Krishna laid down Dharma for the Pandavas, so shall these rules govern your quest.</p>
-
-        ${renderDivider('⟐')}
 
         <div class="rounds-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
           <div class="ancient-card">

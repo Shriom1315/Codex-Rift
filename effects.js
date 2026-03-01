@@ -45,17 +45,6 @@ function createDust(container, index) {
     container.appendChild(dust);
 }
 
-// --- Oil Lamp Corner Effect ---
-export function createOilLamp() {
-    const lamp = document.createElement('div');
-    lamp.className = 'oil-lamp';
-    lamp.innerHTML = `
-    <div class="lamp-flame"></div>
-    <div class="lamp-base"></div>
-  `;
-    lamp.title = '🪔 Sacred Lamp';
-    document.body.appendChild(lamp);
-}
 
 // --- Scroll Reveal Animation ---
 export function initScrollReveal() {
