@@ -1,17 +1,21 @@
 import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
 import { getFirestore, collection, addDoc, getDocs, onSnapshot, updateDoc, doc, setDoc } from "firebase/firestore";
 
-// TODO: Replace with your actual Firebase config from Firebase Console
+// Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyDqeGy4d04hiZ7-wg1MH049H6ywF5fxj60",
+    authDomain: "codexrift-8207f.firebaseapp.com",
+    projectId: "codexrift-8207f",
+    storageBucket: "codexrift-8207f.firebasestorage.app",
+    messagingSenderId: "815720191092",
+    appId: "1:815720191092:web:30a83465f3745ad125ed21",
+    measurementId: "G-F4HRBZCT7J"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 export const db = getFirestore(app);
 
 // Helper functions for admin

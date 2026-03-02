@@ -3,6 +3,13 @@
    Ancient Design System
    ===================================================== */
 
+@font-face {
+  font-family: 'Cartius';
+  src: url('./cartius-font/CartiusDemoRegular-rvy5A.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 /* --- CSS Custom Properties --- */
 :root {
   /* Colors */
@@ -29,7 +36,7 @@
   --glow-sindoor: rgba(168, 44, 44, 0.15);
 
   /* Typography */
-  --font-display: 'Cinzel', serif;
+  --font-display: 'Cartius', serif;
   --font-sanskrit: 'Noto Serif Devanagari', serif;
   --font-body: 'Cormorant Garamond', serif;
   --font-ui: 'Cinzel', serif;
@@ -326,14 +333,14 @@ body::after {
 
 /* --- Hero Section --- */
 .hero {
-  min-height: 100vh;
+  min-height: 70vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   text-align: center;
   position: relative;
-  padding: var(--space-4xl) var(--space-xl);
+  padding: calc(var(--space-4xl) + var(--space-2xl)) var(--space-xl) var(--space-4xl);
   overflow: hidden;
 }
 
@@ -374,9 +381,9 @@ body::after {
 
 .hero-title {
   font-family: var(--font-display);
-  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-size: clamp(4.5rem, 12vw, 9rem);
   line-height: 1.1;
-  letter-spacing: 6px;
+  letter-spacing: 8px;
   text-transform: uppercase;
   margin-bottom: var(--space-md);
   color: var(--gold-light);
@@ -517,7 +524,7 @@ body::after {
 
 .section-title {
   font-family: var(--font-display);
-  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  font-size: clamp(2.2rem, 3.5vw, 3rem);
   text-align: center;
   margin-bottom: var(--space-md);
   color: var(--gold-light);
@@ -603,7 +610,7 @@ body::after {
 
 .round-name {
   font-family: var(--font-display);
-  font-size: 1.8rem;
+  font-size: 2.2rem;
   background: linear-gradient(180deg, var(--gold-light), var(--gold));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -670,7 +677,7 @@ body::after {
 
 .superpower-name {
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   color: var(--gold-light);
 }
 
@@ -726,7 +733,7 @@ body::after {
 
 .login-title {
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   letter-spacing: 4px;
   text-transform: uppercase;
   text-align: center;
@@ -1340,7 +1347,7 @@ body::after {
 
 .victory-title {
   font-family: var(--font-display);
-  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-size: clamp(3rem, 7vw, 5.5rem);
   background: linear-gradient(180deg, var(--gold-light), var(--gold), var(--saffron));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

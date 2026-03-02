@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Game Status Document
+    // Anyone can read the game status
+    // Only authenticated users (admins) can write/update the game status
+    match /game/status {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Teams Collection
+    // Anyone can read team data (needed for leaderboard and public view)
+    // Only authenticated users (admins) can create, update, or delete teams
+    // Note: If you want players to update their own scores, this rule needs 
+    // to be adjusted to check for their specific team credentials.
+    match /teams/{teamId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Default catch-all rule: Deny access to everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
