@@ -50,9 +50,18 @@ function renderNav(activePage = '') {
         <span class="nav-brand-text">Codex Rift</span>
       </a>
       <div class="nav-links">
-        <a class="nav-link ${activePage === 'home' ? 'active' : ''}" onclick="router.navigate('/')">Home</a>
-        <a class="nav-link ${activePage === 'login' ? 'active' : ''}" onclick="router.navigate('/login')">Enter Sabha</a>
-        <a class="nav-link ${activePage === 'leaderboard' ? 'active' : ''}" onclick="router.navigate('/leaderboard')">Warriors</a>
+        <a class="nav-link ${activePage === 'home' ? 'active' : ''}" onclick="router.navigate('/')">
+          <span class="nav-icon">⟡</span>
+          <span class="nav-text">Home</span>
+        </a>
+        <a class="nav-link ${activePage === 'login' ? 'active' : ''}" onclick="router.navigate('/login')">
+          <span class="nav-icon">✦</span>
+          <span class="nav-text">Enter Sabha</span>
+        </a>
+        <a class="nav-link ${activePage === 'leaderboard' ? 'active' : ''}" onclick="router.navigate('/leaderboard')">
+          <span class="nav-icon">☸</span>
+          <span class="nav-text">Warriors</span>
+        </a>
       </div>
     </nav>
     <div class="sanskrit-ticker">
@@ -383,10 +392,11 @@ function renderRound1() {
           </div>
         </div>
       </div>
+      ${renderKrishnaBot(riddle.hint)}
     </div>
   `;
 
-  startTimer('round1-timer');
+  startTimer('round1-timer', riddle.hint);
 
   // Enter key listener
   document.getElementById('riddle-answer').addEventListener('keypress', (e) => {
@@ -541,10 +551,11 @@ function renderRound2() {
           </div>
         </div>
       </div>
+      ${renderKrishnaBot(location.hint)}
     </div>
   `;
 
-  startTimer('round2-timer');
+  startTimer('round2-timer', location.hint);
 
   document.getElementById('location-code').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') checkRound2Code();
@@ -693,10 +704,11 @@ function renderRound3() {
           </div>
         </div>
       </div>
+      ${renderKrishnaBot(clue.hint)}
     </div>
   `;
 
-  startTimer('round3-timer');
+  startTimer('round3-timer', clue.hint);
 
   document.getElementById('codex-code').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') checkRound3Code();
@@ -761,8 +773,6 @@ function renderVictory() {
 // LEADERBOARD
 // =====================================================
 function renderLeaderboard() {
-  const teams = [...gameData.teams].sort((a, b) => (b.score || 0) - (a.score || 0));
-
   const app = document.getElementById('app');
   app.innerHTML = `
     ${renderNav('leaderboard')}
@@ -786,33 +796,8 @@ function renderLeaderboard() {
               <th>Status</th>
             </tr>
           </thead>
-          <tbody>
-            ${teams.map((team, i) => `
-              <tr>
-                <td>
-                  <span class="rank-badge rank-${i < 3 ? i + 1 : 'other'}">
-                    ${i + 1}
-                  </span>
-                </td>
-                <td>
-                  <div class="team-name-cell">
-                    <span style="font-weight: 600; color: var(--text-primary);">${team.name}</span>
-                    ${team.superpower ? `<span class="superpower-badge">${team.superpower}</span>` : ''}
-                  </div>
-                </td>
-                <td style="font-family: var(--font-ui); font-size: 0.75rem; letter-spacing: 1px;">
-                  Round ${team.currentRound || 1}
-                </td>
-                <td style="color: var(--gold); font-weight: 600;">
-                  ${team.score || 0}
-                </td>
-                <td>
-                  <span class="status-badge ${team.eliminated ? 'status-locked' : 'status-active'}">
-                    ${team.eliminated ? '✗ Eliminated' : '● Active'}
-                  </span>
-                </td>
-              </tr>
-            `).join('')}
+          <tbody id="leaderboard-tbody">
+            <tr><td colspan="5" style="text-align:center;">Consulting the Codex...</td></tr>
           </tbody>
         </table>
       </div>
@@ -820,14 +805,86 @@ function renderLeaderboard() {
       ${renderFooter()}
     </div>
   `;
+
+  if (window.leaderboardUnsubscribe) window.leaderboardUnsubscribe();
+  window.leaderboardUnsubscribe = dbAdmin.listenToTeams((teams) => {
+    const tbody = document.getElementById('leaderboard-tbody');
+    if (!tbody) return;
+
+    teams.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+    tbody.innerHTML = teams.map((team, i) => `
+      <tr>
+        <td>
+          <span class="rank-badge rank-${i < 3 ? i + 1 : 'other'}">
+            ${i + 1}
+          </span>
+        </td>
+        <td>
+          <div class="team-name-cell">
+            <span style="font-weight: 600; color: var(--text-primary);">${team.name}</span>
+            ${team.superpower ? `<span class="superpower-badge">${team.superpower}</span>` : ''}
+          </div>
+        </td>
+        <td style="font-family: var(--font-ui); font-size: 0.75rem; letter-spacing: 1px;">
+          Round ${team.currentRound || 1}
+        </td>
+        <td style="color: var(--gold); font-weight: 600;">
+          ${team.score || 0}
+        </td>
+        <td>
+          <span class="status-badge ${team.status === 'disqualified' ? 'status-locked' : 'status-active'}">
+            ${team.status === 'disqualified' ? '✗ DQ' : '● Active'}
+          </span>
+        </td>
+      </tr>
+    `).join('');
+  });
+}
+
+// =====================================================
+// KRISHNA AI BOT
+// =====================================================
+function renderKrishnaBot(hintText) {
+  if (!hintText) return '';
+  return `
+    <div class="krishna-bot">
+      <div class="krishna-chat-panel" id="krishna-panel">
+        <div class="krishna-chat-header">
+          <div class="krishna-chat-title">
+            <span>🦚</span> Shree Krishna
+          </div>
+          <button class="krishna-close-btn" onclick="document.getElementById('krishna-panel').classList.remove('open')">×</button>
+        </div>
+        <div class="krishna-chat-body">
+          <div class="krishna-message">
+            <span class="krishna-name">Krishna</span>
+            <div class="krishna-bubble">
+              "Fear not, O Warrior. Focus thy mind. Your path is currently blocked, but the truth is within. Wait, and I shall guide thee when the time is right."
+            </div>
+          </div>
+          <div id="krishna-hint-box">
+             <div class="krishna-hint-locked">
+               Divine hint manifests after 5 minutes of contemplation...
+             </div>
+          </div>
+        </div>
+      </div>
+      <div class="krishna-avatar" onclick="document.getElementById('krishna-panel').classList.toggle('open'); document.getElementById('krishna-notif').classList.remove('active');">
+        <img src="/images/krishna-avatar.png" alt="Krishna AI" />
+        <div class="krishna-notification" id="krishna-notif"></div>
+      </div>
+    </div>
+  `;
 }
 
 // =====================================================
 // TIMER
 // =====================================================
-function startTimer(elementId) {
+function startTimer(elementId, hintText = null) {
   if (state.timer) clearInterval(state.timer);
   state.timerValue = 0;
+  state.krishnaHintAvailable = false;
 
   state.timer = setInterval(() => {
     state.timerValue++;
@@ -836,6 +893,24 @@ function startTimer(elementId) {
     const el = document.getElementById(elementId);
     if (el) el.textContent = `${mins}:${secs}`;
     else clearInterval(state.timer);
+
+    // Show Krishna Hint after 5 mins (300 sec)
+    if (state.timerValue >= 300 && hintText && !state.krishnaHintAvailable) {
+      state.krishnaHintAvailable = true;
+      const notif = document.getElementById('krishna-notif');
+      const hintEl = document.getElementById('krishna-hint-box');
+      if (notif) notif.classList.add('active');
+      if (hintEl) {
+        hintEl.innerHTML = `
+             <div class="krishna-message">
+               <span class="krishna-name">Krishna</span>
+               <div class="krishna-bubble" style="border-left-color: var(--success-light)">
+                 "Behold, O Arjuna! The path clears for thee: <br/><br/><strong style="color:var(--gold-light)">${hintText}</strong>"
+               </div>
+             </div>
+           `;
+      }
+    }
   }, 1000);
 }
 
@@ -844,6 +919,28 @@ function startTimer(elementId) {
 // =====================================================
 let unsubscribeTeams = null;
 let unsubscribeGame = null;
+let unsubscribeRiddles = null;
+
+window.adminAddRiddle = async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const data = {
+    round: parseInt(form.round.value),
+    shloka: form.shloka.value,
+    translation: form.translation.value,
+    riddle: form.riddle.value,
+    answer: form.answer.value,
+  };
+  await dbAdmin.saveRiddle(data);
+  form.reset();
+  alert('Riddle Saved to Codex!');
+};
+
+window.adminRemoveRiddle = async (id) => {
+  if (confirm("Delete this riddle?")) {
+    await dbAdmin.deleteRiddle(id);
+  }
+};
 
 window.handleAdminLogin = (e) => {
   e.preventDefault();
@@ -911,89 +1008,114 @@ function renderAdmin() {
   if (!state.adminLoggedIn) {
     app.innerHTML = `
       ${renderNav('admin')}
-  <div class="page login-page">
-    <div class="login-container">
-      <div class="login-card">
-        <h2 class="login-title">Admin Login</h2>
-        <form onsubmit="handleAdminLogin(event)">
-          <div class="form-group">
-            <label class="form-label" for="admin-pass">Secret Password</label>
-            <input class="form-input" type="password" id="admin-pass" placeholder="Enter strictly..." required />
-          </div>
-          <button type="submit" class="btn btn-primary login-btn">Authenticate</button>
-        </form>
+    <div class="page login-page">
+      <div class="login-container">
+        <div class="login-card">
+          <h2 class="login-title">Admin Login</h2>
+          <form onsubmit="handleAdminLogin(event)">
+            <div class="form-group">
+              <label class="form-label" for="admin-pass">Secret Password</label>
+              <input class="form-input" type="password" id="admin-pass" placeholder="Enter strictly..." required />
+            </div>
+            <button type="submit" class="btn btn-primary login-btn">Authenticate</button>
+          </form>
+        </div>
       </div>
     </div>
-  </div>
-  `;
+    `;
     return;
   }
 
   // Dashboard View
   app.innerHTML = `
     ${renderNav('admin')}
-  <div class="page" style="padding-top:20px; padding-bottom:50px;">
-    <section class="section">
-      <h2 class="section-title">Admin Sabha</h2>
-      <div class="rounds-grid">
+    <div class="page" style="padding-top:20px; padding-bottom:50px;">
+      <section class="section">
+        <h2 class="section-title">Admin Sabha</h2>
+        <div class="rounds-grid">
 
-        <div class="ancient-card">
-          <h3 style="color:var(--gold); margin-bottom:10px; font-family:var(--font-ui);">Game Control</h3>
-          <div style="display:flex; gap:10px; margin-bottom: 15px;">
-            <button id="btn-create-game" class="btn btn-primary" onclick="adminCreateGame()">Create/Reset Game</button>
-            <button class="btn btn-outline" style="color:var(--sindoor); border-color:var(--sindoor);" onclick="adminToggleGame(false)">Halt Game</button>
+          <div class="ancient-card">
+            <h3 style="color:var(--gold); margin-bottom:10px; font-family:var(--font-ui);">Game Control</h3>
+            <div style="display:flex; gap:10px; margin-bottom: 15px;">
+              <button id="btn-create-game" class="btn btn-primary" onclick="adminCreateGame()">Create/Reset Game</button>
+              <button class="btn btn-outline" style="color:var(--sindoor); border-color:var(--sindoor);" onclick="adminToggleGame(false)">Halt Game</button>
+            </div>
+
+            <h4 style="color:var(--text-secondary); margin-bottom:10px; font-size:0.85rem; text-transform:uppercase; letter-spacing:2px;">Set Active Round</h4>
+            <div style="display:flex; gap:5px; margin-bottom: 15px;">
+              <button class="btn btn-outline" style="padding: 8px 15px;" onclick="adminSetRound(1)">Round 1</button>
+              <button class="btn btn-outline" style="padding: 8px 15px;" onclick="adminSetRound(2)">Round 2</button>
+              <button class="btn btn-outline" style="padding: 8px 15px;" onclick="adminSetRound(3)">Round 3</button>
+            </div>
+
+            <p style="margin-top:10px; font-size:0.8rem; color:var(--text-muted);" id="admin-game-status">Game Status: Unknown</p>
           </div>
 
-          <h4 style="color:var(--text-secondary); margin-bottom:10px; font-size:0.85rem; text-transform:uppercase; letter-spacing:2px;">Set Active Round</h4>
-          <div style="display:flex; gap:5px; margin-bottom: 15px;">
-            <button class="btn btn-outline" style="padding: 8px 15px;" onclick="adminSetRound(1)">Round 1</button>
-            <button class="btn btn-outline" style="padding: 8px 15px;" onclick="adminSetRound(2)">Round 2</button>
-            <button class="btn btn-outline" style="padding: 8px 15px;" onclick="adminSetRound(3)">Round 3</button>
+          <div class="ancient-card">
+            <h3 style="color:var(--gold); margin-bottom:10px; font-family:var(--font-ui);">Add Team</h3>
+            <form onsubmit="adminAddTeam(event)" style="display:flex; flex-direction:column; gap:10px;">
+              <input class="form-input" id="admin-team-name" placeholder="Team Name" required />
+              <input class="form-input" id="admin-team-code" placeholder="Secret Access Code" required />
+              <button type="submit" class="btn btn-sindoor">Add Team to Lobby</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="ancient-card" style="margin-top:20px; overflow-x:auto;">
+          <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-ui);">Lobby & Teams</h3>
+          <table class="leaderboard-table" style="width:100%;">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Code</th>
+                <th>Status</th>
+                <th>Score</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="admin-teams-list">
+              <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:40px;">
+          <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-ui); font-size:1.5rem;">Manage Codex Riddles</h3>
+
+          <div class="ancient-card" style="margin-bottom: 20px;">
+            <h4 style="color:var(--text-primary); margin-bottom:10px;">Add New Riddle / Shloka</h4>
+            <form onsubmit="adminAddRiddle(event)" style="display:flex; flex-direction:column; gap:10px;">
+              <select name="round" class="form-input" style="background:var(--bg-dark)" required>
+                <option value="1">Round 1</option>
+                <option value="2">Round 2</option>
+                <option value="3">Round 3</option>
+              </select>
+              <textarea name="shloka" class="form-input" placeholder="Sanskrit Shloka..." rows="2" required></textarea>
+              <input type="text" name="translation" class="form-input" placeholder="Translation / Context" required />
+              <textarea name="riddle" class="form-input" placeholder="The actual Riddle..." rows="2" required></textarea>
+              <input type="text" name="answer" class="form-input" placeholder="Answer / Code / Location" required />
+              <button type="submit" class="btn btn-primary">Save to Codex</button>
+            </form>
           </div>
 
-          <p style="margin-top:10px; font-size:0.8rem; color:var(--text-muted);" id="admin-game-status">Game Status: Unknown</p>
+          <div class="rounds-grid" id="admin-riddles-list">
+            <p>Loading Riddles...</p>
+          </div>
         </div>
-
-        <div class="ancient-card">
-          <h3 style="color:var(--gold); margin-bottom:10px; font-family:var(--font-ui);">Add Team</h3>
-          <form onsubmit="adminAddTeam(event)" style="display:flex; flex-direction:column; gap:10px;">
-            <input class="form-input" id="admin-team-name" placeholder="Team Name" required />
-            <input class="form-input" id="admin-team-code" placeholder="Secret Access Code" required />
-            <button type="submit" class="btn btn-sindoor">Add Team to Lobby</button>
-          </form>
-        </div>
-      </div>
-
-      <div class="ancient-card" style="margin-top:20px; overflow-x:auto;">
-        <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-ui);">Lobby & Teams</h3>
-        <table class="leaderboard-table" style="width:100%;">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Code</th>
-              <th>Status</th>
-              <th>Score</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="admin-teams-list">
-            <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </div>
-  `;
+      </section>
+    </div>
+    `;
 
   // Init Realtime Listeners
   if (unsubscribeTeams) unsubscribeTeams();
   if (unsubscribeGame) unsubscribeGame();
+  if (unsubscribeRiddles) unsubscribeRiddles();
 
   unsubscribeGame = dbAdmin.listenToGame((game) => {
     const el = document.getElementById('admin-game-status');
     if (el) {
       if (game) {
-        el.innerText = `Game Active: ${game.isActive ? 'Yes' : 'No'} | Current Round: ${game.currentRound}`;
+        el.innerText = `Game Active: ${game.isActive ? 'Yes' : 'No'} | Current Round: ${game.currentRound} `;
       } else {
         el.innerText = 'Game Status: Offline / Not Created';
       }
@@ -1008,7 +1130,7 @@ function renderAdmin() {
     teams.sort((a, b) => b.score - a.score);
 
     list.innerHTML = teams.map(t => `
-      <tr>
+      < tr >
         <td>${t.name}</td>
         <td style="color:var(--gold-dark);">${t.code}</td>
         <td>
@@ -1023,7 +1145,27 @@ function renderAdmin() {
           <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem; color:var(--sindoor); border-color:var(--sindoor);" onclick="adminSetStatus('${t.id}', 'disqualified')">DQ</button>
           <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem; color:#888; border-color:#888;" onclick="adminDeleteTeam('${t.id}')">Del</button>
         </td>
-      </tr>
-    `).join('') || '<tr><td colspan="5" style="text-align:center;">No teams found</td></tr>';
+      </tr >
+      `).join('') || '<tr><td colspan="5" style="text-align:center;">No teams found</td></tr>';
+  });
+
+  unsubscribeRiddles = dbAdmin.listenToRiddles((riddles) => {
+    const container = document.getElementById('admin-riddles-list');
+    if (!container) return;
+    riddles.sort((a, b) => a.round - b.round);
+
+    container.innerHTML = riddles.map(r => `
+      < div class="ancient-card" >
+           <div style="display:flex; justify-content:space-between;">
+              <span class="rank-badge rank-1">R${r.round}</span>
+              <button class="btn btn-outline" style="padding: 2px 8px; font-size:0.6rem; color:var(--sindoor); border-color:var(--sindoor);" onclick="adminRemoveRiddle('${r.id}')">Delete</button>
+           </div>
+           <p style="font-family:var(--font-display); color:var(--gold); margin-top:10px; font-size:0.9rem;">${r.shloka}</p>
+           <p style="color:var(--text-secondary); font-size:0.75rem; margin-top:5px;">${r.translation}</p>
+           <hr style="border-color:var(--border-color); margin:10px 0;">
+           <p style="color:var(--text-primary); font-size:0.85rem;">Q: ${r.riddle}</p>
+           <p style="color:var(--success-light); font-size:0.85rem; margin-top:5px; font-weight:bold;">A: ${r.answer}</p>
+        </div>
+    `).join('') || '<p>No riddles recorded in the Codex.</p>';
   });
 }

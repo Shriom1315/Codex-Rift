@@ -250,6 +250,14 @@ body::after {
   border-radius: var(--radius-sm);
   transition: all 0.3s ease;
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-icon {
+  display: none;
+  /* Hide on desktop */
 }
 
 .nav-link::after {
@@ -1680,23 +1688,87 @@ body::after {
     font-size: 16px;
   }
 
+  .sanskrit-ticker {
+    margin-top: 0;
+  }
+
+  .page {
+    padding-bottom: 90px;
+  }
+
+  /* Bottom Navigation for Mobile */
   .ancient-nav {
-    padding: var(--space-sm) var(--space-md);
+    top: auto;
+    bottom: 0;
+    padding: var(--space-xs) 0;
+    background: rgba(18, 12, 5, 0.95);
+    backdrop-filter: blur(15px);
+    border-top: 1px solid var(--border-gold);
+    border-bottom: none;
+    justify-content: center;
+    box-shadow: 0 -5px 30px rgba(0, 0, 0, 0.8);
+    height: 70px;
+  }
+
+  .nav-brand {
+    display: none;
   }
 
   .nav-links {
-    gap: var(--space-sm);
+    width: 100%;
+    justify-content: space-evenly;
+    gap: 0;
   }
 
   .nav-link {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     font-size: 0.6rem;
-    padding: var(--space-xs) var(--space-sm);
+    padding: var(--space-xs) 0;
     letter-spacing: 1px;
+    border: none;
+    background: transparent !important;
+    gap: 4px;
+  }
+
+  .nav-icon {
+    display: block;
+    font-size: 1.25rem;
+    margin-bottom: 2px;
+  }
+
+  .nav-text {
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .nav-link::after {
+    display: none;
+  }
+
+  .nav-link.active {
+    color: var(--gold);
+    text-shadow: 0 0 10px var(--glow-gold);
+    border: none;
+  }
+
+  .nav-link.active .nav-icon {
+    transform: translateY(-2px);
+    transition: transform 0.3s ease;
+  }
+
+  .hero {
+    padding-top: calc(var(--space-2xl) + var(--space-xl));
   }
 
   .rounds-grid {
     grid-template-columns: 1fr;
   }
+
 
   .hero-title {
     font-size: clamp(2rem, 10vw, 3.5rem);
@@ -1706,33 +1778,82 @@ body::after {
     padding: var(--space-2xl) var(--space-md);
   }
 
-  .answer-form {
-    flex-direction: column;
+  /* Remove massive top padding on mobile since nav is at bottom */
+  .signal-page,
+  .hunt-page,
+  .codex-page,
+  .leaderboard-page {
+    padding-top: var(--space-lg);
   }
 
-  .code-char {
-    width: 40px;
-    height: 50px;
-    font-size: 1.1rem;
+  /* Make items stretch appropriately */
+  .signal-container,
+  .hunt-container,
+  .codex-container,
+  .leaderboard-container {
+    padding: var(--space-md);
   }
 
   .riddle-card {
-    padding: var(--space-xl);
+    padding: var(--space-md);
+  }
+
+
+  .shloka-block {
+    padding: var(--space-sm);
+    margin-bottom: var(--space-sm);
   }
 
   .shloka-text {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: var(--space-sm);
+  }
+
+  .shloka-translation {
+    font-size: 0.85rem;
+  }
+
+  .riddle-text {
+    font-size: 1rem;
+    padding: var(--space-sm);
+    margin-bottom: var(--space-md);
+    line-height: 1.6;
+  }
+
+  .answer-form {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .answer-input,
+  .submit-btn {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .code-char {
+    width: 32px;
+    height: 40px;
+    font-size: 1rem;
+  }
+
+  /* Shrink progress diamonds */
+  .progress-stone {
+    width: 28px;
+    height: 28px;
+    font-size: 0.65rem;
+  }
+
+  .progress-connector {
+    width: 20px;
   }
 }
 
 @media (max-width: 480px) {
+
   .nav-brand-text {
     font-size: 1rem;
-  }
-
-  .nav-link {
-    font-size: 0.55rem;
-    letter-spacing: 1px;
   }
 
   .login-card {
@@ -1742,6 +1863,219 @@ body::after {
   .location-tracker {
     flex-wrap: wrap;
   }
+
+  /* Extreme compactness for small phones */
+  .riddle-number-badge {
+    margin: 0 auto var(--space-md);
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+  }
+
+  .shloka-block {
+    margin-bottom: var(--space-sm);
+    padding: var(--space-md) var(--space-xs) var(--space-sm);
+  }
+
+  .riddle-text {
+    margin-bottom: var(--space-sm);
+  }
+
+  .shloka-block::before {
+    font-size: 1rem;
+    padding: 0 var(--space-xs);
+    top: -8px;
+  }
+
+  .leaderboard-table th,
+  .leaderboard-table td {
+    padding: var(--space-sm);
+    font-size: 0.7rem;
+  }
+
+  .rank-badge {
+    width: 24px;
+    height: 24px;
+    font-size: 0.6rem;
+  }
+
+  .team-name-cell span {
+    font-size: 0.8rem;
+  }
+
+  /* Shrink Krishna bot for small phones */
+  .krishna-bot {
+    right: var(--space-sm);
+    bottom: 80px;
+  }
+
+  .krishna-avatar {
+    width: 50px;
+    height: 50px;
+  }
+
+  .krishna-chat-panel {
+    width: calc(100vw - var(--space-lg) * 2);
+    max-width: 300px;
+  }
+}
+
+/* --- Krishna AI Bot --- */
+.krishna-bot {
+  position: fixed;
+  bottom: 90px;
+  right: var(--space-xl);
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+@media (min-width: 769px) {
+  .krishna-bot {
+    bottom: var(--space-xl);
+  }
+}
+
+.krishna-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--bg-dark);
+  border: 2px solid var(--gold);
+  box-shadow: 0 0 20px var(--glow-gold);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.krishna-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.krishna-avatar:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 30px var(--glow-gold);
+}
+
+.krishna-notification {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 14px;
+  height: 14px;
+  background: var(--sindoor);
+  border-radius: 50%;
+  border: 2px solid var(--bg-dark);
+  display: none;
+}
+
+.krishna-notification.active {
+  display: block;
+  animation: pulse 2s infinite;
+}
+
+.krishna-chat-panel {
+  width: 320px;
+  background: rgba(18, 12, 5, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+  margin-bottom: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  transform: translateY(20px);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s ease;
+  transform-origin: bottom right;
+}
+
+.krishna-chat-panel.open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.krishna-chat-header {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.krishna-chat-title {
+  font-family: var(--font-display);
+  color: var(--gold);
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.krishna-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+
+.krishna-close-btn:hover {
+  color: var(--text-primary);
+}
+
+.krishna-chat-body {
+  padding: var(--space-md);
+  max-height: 250px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.krishna-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.krishna-name {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  color: var(--gold-light);
+  letter-spacing: 1px;
+}
+
+.krishna-bubble {
+  background: rgba(201, 168, 76, 0.1);
+  border-left: 3px solid var(--gold);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.krishna-hint-locked {
+  background: rgba(43, 43, 43, 0.5);
+  border: 1px dashed var(--border-color);
+  padding: var(--space-md);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 /* --- Utility --- */

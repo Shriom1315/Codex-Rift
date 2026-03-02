@@ -155,5 +155,41 @@ export const dbAdmin = {
                 callback(null);
             }
         });
+    },
+
+    saveRiddle: async (riddleData) => {
+        try {
+            const { collection, addDoc, updateDoc, doc } = await import("firebase/firestore");
+            if (riddleData.id) {
+                const id = riddleData.id;
+                delete riddleData.id;
+                await updateDoc(doc(db, "riddles", id), riddleData);
+            } else {
+                await addDoc(collection(db, "riddles"), riddleData);
+            }
+            return true;
+        } catch (e) {
+            console.error(e);
+            return false;
+        }
+    },
+
+    deleteRiddle: async (id) => {
+        try {
+            const { deleteDoc, doc } = await import("firebase/firestore");
+            await deleteDoc(doc(db, "riddles", id));
+            return true;
+        } catch (e) {
+            console.error(e);
+            return false;
+        }
+    },
+
+    listenToRiddles: (callback) => {
+        return onSnapshot(collection(db, "riddles"), (querySnapshot) => {
+            const arr = [];
+            querySnapshot.forEach(d => arr.push({ id: d.id, ...d.data() }));
+            callback(arr);
+        });
     }
 };
