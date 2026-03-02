@@ -267,26 +267,46 @@ function renderLogin() {
   `;
 }
 
-window.handleLogin = function (e) {
+window.handleLogin = async function (e) {
   e.preventDefault();
   const teamName = document.getElementById('team-name').value.trim();
   const teamCode = document.getElementById('team-code').value.trim();
 
-  const team = gameData.teams.find(t => t.name.toLowerCase() === teamName.toLowerCase() && t.code === teamCode);
+  const btn = document.querySelector('.login-btn');
+  const orgText = btn.innerHTML;
+  btn.innerText = 'Consulting Codex...';
+
+  // Attempt Firebase login
+  const team = await dbAdmin.loginTeam(teamName, teamCode);
 
   if (team) {
-    state.currentTeam = team;
-    // Route based on team's current round
-    const round = team.currentRound || 1;
-    if (round === 1) router.navigate('/round1');
-    else if (round === 2) router.navigate('/round2');
-    else if (round === 3) router.navigate('/round3');
-    else router.navigate('/victory');
+    if (team.status === 'disqualified') {
+      alert("Your team has been disqualified from the Sabha.");
+      btn.innerHTML = orgText;
+      return;
+    }
+
+    const game = await dbAdmin.getGameStatus();
+
+    if (game && game.isActive) {
+      state.currentTeam = team;
+      const round = game.currentRound || 1;
+
+      if (round === 1) router.navigate('/round1');
+      else if (round === 2) router.navigate('/round2');
+      else if (round === 3) router.navigate('/round3');
+      else router.navigate('/victory');
+    } else {
+      alert("The sacred game is offline or has not commenced.");
+      btn.innerHTML = orgText;
+    }
   } else {
     const input = document.getElementById('team-code');
     input.classList.add('wrong');
     input.value = '';
     input.placeholder = 'Invalid credentials...';
+    btn.innerHTML = orgText;
+
     setTimeout(() => {
       input.classList.remove('wrong');
       input.placeholder = 'Enter the sacred code...';
@@ -869,72 +889,100 @@ window.adminUpdateScore = async (id) => {
   }
 };
 
+window.adminSetRound = async (round) => {
+  const confirmMsg = `Advance game to Round ${round}?`;
+  if (confirm(confirmMsg)) {
+    await dbAdmin.updateGameRound(round);
+  }
+};
+
+window.adminToggleGame = async (isActive) => {
+  await dbAdmin.updateGameState(isActive);
+};
+
+window.adminDeleteTeam = async (id) => {
+  if (confirm("Are you sure you want to completely delete this team?")) {
+    await dbAdmin.deleteTeam(id);
+  }
+};
+
 function renderAdmin() {
   const app = document.getElementById('app');
   if (!state.adminLoggedIn) {
     app.innerHTML = `
       ${renderNav('admin')}
-      <div class="page login-page">
-        <div class="login-container">
-          <div class="login-card">
-            <h2 class="login-title">Admin Login</h2>
-            <form onsubmit="handleAdminLogin(event)">
-              <div class="form-group">
-                <label class="form-label" for="admin-pass">Secret Password</label>
-                <input class="form-input" type="password" id="admin-pass" placeholder="Enter strictly..." required />
-              </div>
-              <button type="submit" class="btn btn-primary login-btn">Authenticate</button>
-            </form>
+  <div class="page login-page">
+    <div class="login-container">
+      <div class="login-card">
+        <h2 class="login-title">Admin Login</h2>
+        <form onsubmit="handleAdminLogin(event)">
+          <div class="form-group">
+            <label class="form-label" for="admin-pass">Secret Password</label>
+            <input class="form-input" type="password" id="admin-pass" placeholder="Enter strictly..." required />
           </div>
-        </div>
+          <button type="submit" class="btn btn-primary login-btn">Authenticate</button>
+        </form>
       </div>
-    `;
+    </div>
+  </div>
+  `;
     return;
   }
 
   // Dashboard View
   app.innerHTML = `
     ${renderNav('admin')}
-    <div class="page" style="padding-top:20px; padding-bottom:50px;">
-      <section class="section">
-        <h2 class="section-title">Admin Sabha</h2>
-        <div class="rounds-grid">
-          
-          <div class="ancient-card">
-            <h3 style="color:var(--gold); margin-bottom:10px; font-family:var(--font-ui);">Game Control</h3>
+  <div class="page" style="padding-top:20px; padding-bottom:50px;">
+    <section class="section">
+      <h2 class="section-title">Admin Sabha</h2>
+      <div class="rounds-grid">
+
+        <div class="ancient-card">
+          <h3 style="color:var(--gold); margin-bottom:10px; font-family:var(--font-ui);">Game Control</h3>
+          <div style="display:flex; gap:10px; margin-bottom: 15px;">
             <button id="btn-create-game" class="btn btn-primary" onclick="adminCreateGame()">Create/Reset Game</button>
-            <p style="margin-top:10px; font-size:0.8rem; color:var(--text-muted);" id="admin-game-status">Game Status: Unknown</p>
+            <button class="btn btn-outline" style="color:var(--sindoor); border-color:var(--sindoor);" onclick="adminToggleGame(false)">Halt Game</button>
           </div>
 
-          <div class="ancient-card">
-            <h3 style="color:var(--gold); margin-bottom:10px; font-family:var(--font-ui);">Add Team</h3>
-            <form onsubmit="adminAddTeam(event)" style="display:flex; flex-direction:column; gap:10px;">
-              <input class="form-input" id="admin-team-name" placeholder="Team Name" required />
-              <input class="form-input" id="admin-team-code" placeholder="Secret Access Code" required />
-              <button type="submit" class="btn btn-sindoor">Add Team to Lobby</button>
-            </form>
+          <h4 style="color:var(--text-secondary); margin-bottom:10px; font-size:0.85rem; text-transform:uppercase; letter-spacing:2px;">Set Active Round</h4>
+          <div style="display:flex; gap:5px; margin-bottom: 15px;">
+            <button class="btn btn-outline" style="padding: 8px 15px;" onclick="adminSetRound(1)">Round 1</button>
+            <button class="btn btn-outline" style="padding: 8px 15px;" onclick="adminSetRound(2)">Round 2</button>
+            <button class="btn btn-outline" style="padding: 8px 15px;" onclick="adminSetRound(3)">Round 3</button>
           </div>
+
+          <p style="margin-top:10px; font-size:0.8rem; color:var(--text-muted);" id="admin-game-status">Game Status: Unknown</p>
         </div>
-        
-        <div class="ancient-card" style="margin-top:20px; overflow-x:auto;">
-          <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-ui);">Lobby & Teams</h3>
-          <table class="leaderboard-table" style="width:100%;">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Code</th>
-                <th>Status</th>
-                <th>Score</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="admin-teams-list">
-              <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
-            </tbody>
-          </table>
+
+        <div class="ancient-card">
+          <h3 style="color:var(--gold); margin-bottom:10px; font-family:var(--font-ui);">Add Team</h3>
+          <form onsubmit="adminAddTeam(event)" style="display:flex; flex-direction:column; gap:10px;">
+            <input class="form-input" id="admin-team-name" placeholder="Team Name" required />
+            <input class="form-input" id="admin-team-code" placeholder="Secret Access Code" required />
+            <button type="submit" class="btn btn-sindoor">Add Team to Lobby</button>
+          </form>
         </div>
-      </section>
-    </div>
+      </div>
+
+      <div class="ancient-card" style="margin-top:20px; overflow-x:auto;">
+        <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-ui);">Lobby & Teams</h3>
+        <table class="leaderboard-table" style="width:100%;">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Code</th>
+              <th>Status</th>
+              <th>Score</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admin-teams-list">
+            <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
   `;
 
   // Init Realtime Listeners
@@ -945,9 +993,9 @@ function renderAdmin() {
     const el = document.getElementById('admin-game-status');
     if (el) {
       if (game) {
-        el.innerText = `Game Active: Round ${game.currentRound}`;
+        el.innerText = `Game Active: ${game.isActive ? 'Yes' : 'No'} | Current Round: ${game.currentRound}`;
       } else {
-        el.innerText = 'Game Status: Offline';
+        el.innerText = 'Game Status: Offline / Not Created';
       }
     }
   });
@@ -969,10 +1017,11 @@ function renderAdmin() {
            </span>
         </td>
         <td>${t.score}</td>
-        <td style="display:flex; gap:10px;">
+        <td style="display:flex; gap:5px;">
           <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem;" onclick="adminUpdateScore('${t.id}')">Score</button>
           <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem; color:var(--success-light); border-color:var(--success-light);" onclick="adminSetStatus('${t.id}', 'qualified')">Q</button>
           <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem; color:var(--sindoor); border-color:var(--sindoor);" onclick="adminSetStatus('${t.id}', 'disqualified')">DQ</button>
+          <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem; color:#888; border-color:#888;" onclick="adminDeleteTeam('${t.id}')">Del</button>
         </td>
       </tr>
     `).join('') || '<tr><td colspan="5" style="text-align:center;">No teams found</td></tr>';

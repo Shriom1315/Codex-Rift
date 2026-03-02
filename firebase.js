@@ -50,6 +50,32 @@ export const dbAdmin = {
         }
     },
 
+    loginTeam: async (teamName, teamCode) => {
+        try {
+            const { query, where, collection, getDocs } = await import("firebase/firestore");
+            const q = query(collection(db, "teams"), where("name", "==", teamName), where("code", "==", teamCode));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                return { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+            }
+            return null;
+        } catch (e) {
+            console.error("Login error", e);
+            return null;
+        }
+    },
+
+    getGameStatus: async () => {
+        try {
+            const { doc, getDoc } = await import("firebase/firestore");
+            const snapshot = await getDoc(doc(db, "game", "status"));
+            return snapshot.exists() ? snapshot.data() : null;
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
+    },
+
     updateTeamStatus: async (teamId, newStatus) => {
         try {
             const teamRef = doc(db, "teams", teamId);
@@ -72,6 +98,41 @@ export const dbAdmin = {
             return true;
         } catch (e) {
             console.error("Error updating score: ", e);
+            return false;
+        }
+    },
+
+    deleteTeam: async (teamId) => {
+        try {
+            const { deleteDoc } = await import("firebase/firestore");
+            await deleteDoc(doc(db, "teams", teamId));
+            return true;
+        } catch (e) {
+            console.error("Error deleting team: ", e);
+            return false;
+        }
+    },
+
+    updateGameRound: async (round) => {
+        try {
+            await updateDoc(doc(db, "game", "status"), {
+                currentRound: parseInt(round)
+            });
+            return true;
+        } catch (e) {
+            console.error("Error updating game round: ", e);
+            return false;
+        }
+    },
+
+    updateGameState: async (isActive) => {
+        try {
+            await updateDoc(doc(db, "game", "status"), {
+                isActive: isActive
+            });
+            return true;
+        } catch (e) {
+            console.error("Error updating game state: ", e);
             return false;
         }
     },
