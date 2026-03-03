@@ -38,8 +38,8 @@
   /* Typography */
   --font-display: 'Cartius', serif;
   --font-sanskrit: 'Noto Serif Devanagari', serif;
-  --font-body: 'Cormorant Garamond', serif;
-  --font-ui: 'Cinzel', serif;
+  --font-body: 'Lora', serif;
+  --font-ui: 'Outfit', sans-serif;
 
   /* Spacing */
   --space-xs: 0.25rem;
@@ -525,7 +525,7 @@ body::after {
 
 /* --- Sections --- */
 .section {
-  padding: var(--space-4xl) var(--space-xl);
+  padding: var(--space-2xl) var(--space-xl) var(--space-4xl);
   max-width: 1200px;
   margin: 0 auto;
 }
@@ -639,7 +639,7 @@ body::after {
 
 .round-description {
   color: var(--text-secondary);
-  font-size: 1rem;
+  font-size: 1.1rem;
   line-height: 1.8;
   margin-bottom: var(--space-lg);
 }
@@ -655,7 +655,7 @@ body::after {
   display: flex;
   align-items: flex-start;
   gap: var(--space-sm);
-  font-size: 0.95rem;
+  font-size: 1.05rem;
 }
 
 .round-features li::before {
@@ -676,7 +676,7 @@ body::after {
 
 .superpower-label {
   font-family: var(--font-ui);
-  font-size: 0.65rem;
+  font-size: 0.8rem;
   letter-spacing: 3px;
   text-transform: uppercase;
   color: var(--sindoor);
@@ -814,7 +814,6 @@ body::after {
 
 /* --- Round 1: The Signal --- */
 .signal-page {
-  padding-top: 100px;
   min-height: 100vh;
 }
 
@@ -977,14 +976,14 @@ body::after {
 
 .shloka-translation {
   font-family: var(--font-body);
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   color: var(--text-secondary);
   font-style: italic;
 }
 
 .riddle-text {
   font-family: var(--font-body);
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   color: var(--text-primary);
   text-align: center;
   line-height: 1.9;
@@ -1090,7 +1089,6 @@ body::after {
 
 /* --- Round 2: Mini Treasure Hunt --- */
 .hunt-page {
-  padding-top: 100px;
   min-height: 100vh;
 }
 
@@ -1215,7 +1213,6 @@ body::after {
 
 /* --- Round 3: The Codex --- */
 .codex-page {
-  padding-top: 100px;
   min-height: 100vh;
 }
 
@@ -1382,7 +1379,6 @@ body::after {
 
 /* --- Leaderboard --- */
 .leaderboard-page {
-  padding-top: 100px;
   min-height: 100vh;
 }
 
@@ -1775,16 +1771,10 @@ body::after {
   }
 
   .section {
-    padding: var(--space-2xl) var(--space-md);
+    padding: var(--space-xl) var(--space-md) var(--space-2xl);
   }
 
-  /* Remove massive top padding on mobile since nav is at bottom */
-  .signal-page,
-  .hunt-page,
-  .codex-page,
-  .leaderboard-page {
-    padding-top: var(--space-lg);
-  }
+  /* Padding scales automatically through .section now */
 
   /* Make items stretch appropriately */
   .signal-container,
@@ -1805,17 +1795,17 @@ body::after {
   }
 
   .shloka-text {
-    font-size: 0.95rem;
+    font-size: 1.15rem;
     line-height: 1.6;
     margin-bottom: var(--space-sm);
   }
 
   .shloka-translation {
-    font-size: 0.85rem;
+    font-size: 1rem;
   }
 
   .riddle-text {
-    font-size: 1rem;
+    font-size: 1.15rem;
     padding: var(--space-sm);
     margin-bottom: var(--space-md);
     line-height: 1.6;

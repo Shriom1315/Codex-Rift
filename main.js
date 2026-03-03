@@ -25,6 +25,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const router = new Router({
     '/': () => renderHome(),
+    '/about': () => renderAbout(),
+    '/rules': () => renderRules(),
     '/login': () => renderLogin(),
     '/round1': () => renderRound1(),
     '/round2': () => renderRound2(),
@@ -54,9 +56,17 @@ function renderNav(activePage = '') {
           <span class="nav-icon">⟡</span>
           <span class="nav-text">Home</span>
         </a>
+        <a class="nav-link ${activePage === 'about' ? 'active' : ''}" onclick="router.navigate('/about')">
+          <span class="nav-icon">✧</span>
+          <span class="nav-text">Quest</span>
+        </a>
         <a class="nav-link ${activePage === 'login' ? 'active' : ''}" onclick="router.navigate('/login')">
           <span class="nav-icon">✦</span>
-          <span class="nav-text">Enter Sabha</span>
+          <span class="nav-text">Sabha</span>
+        </a>
+        <a class="nav-link ${activePage === 'rules' ? 'active' : ''}" onclick="router.navigate('/rules')">
+          <span class="nav-icon">◈</span>
+          <span class="nav-text">Rules</span>
         </a>
         <a class="nav-link ${activePage === 'leaderboard' ? 'active' : ''}" onclick="router.navigate('/leaderboard')">
           <span class="nav-icon">☸</span>
@@ -115,7 +125,19 @@ function renderHome() {
         </div>
       </section>
 
-      <!-- About Section -->
+      ${renderFooter()}
+    </div>
+  `;
+}
+
+// =====================================================
+// ABOUT PAGE (THE QUEST)
+// =====================================================
+function renderAbout() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav('about')}
+    <div class="page">
       <section class="section">
         <p class="section-sanskrit">गीता सुगीता कर्तव्या किमन्यैः शास्त्रविस्तरैः</p>
         <h2 class="section-title">The Sacred Quest</h2>
@@ -199,7 +221,19 @@ function renderHome() {
         </div>
       </section>
 
-      <!-- Rules Section -->
+      ${renderFooter()}
+    </div>
+  `;
+}
+
+// =====================================================
+// RULES PAGE (LAWS OF THE SABHA)
+// =====================================================
+function renderRules() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav('rules')}
+    <div class="page">
       <section class="section">
         <p class="section-sanskrit">नियमाः सर्वेषां समानाः</p>
         <h2 class="section-title">Laws of the Sabha</h2>
@@ -778,7 +812,7 @@ function renderLeaderboard() {
     ${renderNav('leaderboard')}
     <div class="page leaderboard-page">
       <div class="leaderboard-container">
-        <div class="text-center mb-3" style="padding-top: var(--space-xl);">
+        <div class="text-center mb-3">
           <p class="section-sanskrit">॥ वीर गृहम् ॥</p>
           <h2 class="section-title">Hall of Warriors</h2>
           <p class="section-subtitle">The bravest warriors of the Sabha, ranked by their valor and wisdom.</p>
