@@ -32,7 +32,7 @@ window.addEventListener('DOMContentLoaded', () => {
     '/round2': () => renderRound2(),
     '/round3': () => renderRound3(),
     '/leaderboard': () => renderLeaderboard(),
-    '/victory': () => renderVictory(),
+    '/victory': () => renderRound3Complete(),
     '/admin': () => renderAdmin(),
   });
 
@@ -333,6 +333,21 @@ window.handleLogin = async function (e) {
 
     if (game && game.isActive) {
       state.currentTeam = team;
+
+      // Record initial entry/re-entry location
+      dbAdmin.updateTeamProgress(team.id, {
+        sessionActive: true,
+        lastLocation: team.lastLocation || 'Entered the Sabha'
+      });
+
+      // Load saved progress if exists
+      if (team.progress) {
+        state.round1 = team.progress.round1 || state.round1;
+        state.round2 = team.progress.round2 || state.round2;
+        state.round3 = team.progress.round3 || state.round3;
+        state.superpowers = team.progress.superpowers || state.superpowers;
+      }
+
       const round = game.currentRound || 1;
 
       if (round === 1) router.navigate('/round1');
@@ -369,6 +384,13 @@ function renderRound1() {
     // All riddles solved — show completion
     renderRound1Complete();
     return;
+  }
+
+  // Pulse location to admin
+  if (state.currentTeam) {
+    dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      lastLocation: `Round 1: Riddle ${current + 1}`
+    });
   }
 
   const app = document.getElementById('app');
@@ -449,6 +471,17 @@ window.checkRound1Answer = function () {
     state.round1.answers[state.round1.currentRiddle] = answer;
     state.round1.currentRiddle++;
 
+    // Push to Firebase
+    dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      progress: {
+        round1: state.round1,
+        round2: state.round2,
+        round3: state.round3,
+        superpowers: state.superpowers
+      },
+      lastLocation: 'Round 1 - Riddle ' + state.round1.currentRiddle
+    });
+
     setTimeout(() => {
       renderRound1();
     }, 800);
@@ -520,6 +553,13 @@ function renderRound2() {
   if (!location) {
     renderRound2Complete();
     return;
+  }
+
+  // Pulse location to admin
+  if (state.currentTeam) {
+    dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      lastLocation: `Searching: ${location.locationName}`
+    });
   }
 
   const app = document.getElementById('app');
@@ -607,6 +647,17 @@ window.checkRound2Code = function () {
     state.round2.codes[state.round2.currentLocation] = code;
     state.round2.currentLocation++;
 
+    // Push to Firebase
+    dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      progress: {
+        round1: state.round1,
+        round2: state.round2,
+        round3: state.round3,
+        superpowers: state.superpowers
+      },
+      lastLocation: location.locationName
+    });
+
     setTimeout(() => renderRound2(), 800);
   } else {
     input.classList.add('wrong');
@@ -663,8 +714,15 @@ function renderRound3() {
   const clue = clues[current];
 
   if (!clue) {
-    router.navigate('/victory');
+    renderRound3Complete();
     return;
+  }
+
+  // Pulse location to admin
+  if (state.currentTeam) {
+    dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      lastLocation: `Codex: ${clue.locationName}`
+    });
   }
 
   const app = document.getElementById('app');
@@ -760,6 +818,17 @@ window.checkRound3Code = function () {
     state.round3.codes[state.round3.currentClue] = code;
     state.round3.currentClue++;
 
+    // Push to Firebase
+    dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      progress: {
+        round1: state.round1,
+        round2: state.round2,
+        round3: state.round3,
+        superpowers: state.superpowers
+      },
+      lastLocation: clue.locationName
+    });
+
     setTimeout(() => renderRound3(), 800);
   } else {
     input.classList.add('wrong');
@@ -820,20 +889,9 @@ function renderLeaderboard() {
 
         ${renderDivider('⟐')}
 
-        <table class="leaderboard-table">
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Team</th>
-              <th>Round</th>
-              <th>Score</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="leaderboard-tbody">
-            <tr><td colspan="5" style="text-align:center;">Consulting the Codex...</td></tr>
-          </tbody>
-        </table>
+        <div class="leaderboard-list" id="leaderboard-list">
+          <div style="text-align:center; padding: var(--space-xl); color: var(--text-muted); font-style: italic;">Consulting the Codex...</div>
+        </div>
       </div>
 
       ${renderFooter()}
@@ -842,36 +900,34 @@ function renderLeaderboard() {
 
   if (window.leaderboardUnsubscribe) window.leaderboardUnsubscribe();
   window.leaderboardUnsubscribe = dbAdmin.listenToTeams((teams) => {
-    const tbody = document.getElementById('leaderboard-tbody');
-    if (!tbody) return;
+    const listEl = document.getElementById('leaderboard-list');
+    if (!listEl) return;
 
     teams.sort((a, b) => (b.score || 0) - (a.score || 0));
 
-    tbody.innerHTML = teams.map((team, i) => `
-      <tr>
-        <td>
-          <span class="rank-badge rank-${i < 3 ? i + 1 : 'other'}">
-            ${i + 1}
-          </span>
-        </td>
-        <td>
-          <div class="team-name-cell">
-            <span style="font-weight: 600; color: var(--text-primary);">${team.name}</span>
+    listEl.innerHTML = teams.map((team, i) => `
+      <div class="warrior-card ${i < 3 ? 'top-warrior' : ''}">
+        <div class="warrior-rank">
+          <span class="rank-badge rank-${i < 3 ? i + 1 : 'other'}">${i + 1}</span>
+        </div>
+        <div class="warrior-info">
+          <div class="warrior-name">
+            ${team.name}
             ${team.superpower ? `<span class="superpower-badge">${team.superpower}</span>` : ''}
           </div>
-        </td>
-        <td style="font-family: var(--font-ui); font-size: 0.75rem; letter-spacing: 1px;">
-          Round ${team.currentRound || 1}
-        </td>
-        <td style="color: var(--gold); font-weight: 600;">
-          ${team.score || 0}
-        </td>
-        <td>
-          <span class="status-badge ${team.status === 'disqualified' ? 'status-locked' : 'status-active'}">
-            ${team.status === 'disqualified' ? '✗ DQ' : '● Active'}
-          </span>
-        </td>
-      </tr>
+          <div class="warrior-meta">
+            <span>Round ${team.currentRound || 1}</span>
+            <span class="warrior-dot">◆</span>
+            <span class="${team.status === 'disqualified' ? 'status-locked' : 'status-active'}">
+              ${team.status === 'disqualified' ? '✗ DQ' : '● Active'}
+            </span>
+          </div>
+        </div>
+        <div class="warrior-score">
+          <div class="score-value">${team.score || 0}</div>
+          <div class="score-label">Points</div>
+        </div>
+      </div>
     `).join('');
   });
 }
@@ -1037,6 +1093,50 @@ window.adminDeleteTeam = async (id) => {
   }
 };
 
+function renderRound3Complete() {
+  if (state.currentTeam) {
+    dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      lastLocation: 'QUEST COMPLETED!',
+      status: 'qualified'
+    });
+  }
+
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav()}
+    <div class="page victory-page">
+      <div class="victory-container">
+        <div class="text-center mb-3">
+          <p class="section-sanskrit">जयतु कोडेक्सः — विजयः</p>
+          <h2 class="section-title">The Codex is Unlocked!</h2>
+          <span class="status-badge status-completed">✓ Param-Vijayi</span>
+        </div>
+
+        ${renderDivider('⚔')}
+
+        <div class="riddle-card" style="text-align: center;">
+          <h3 style="font-family: var(--font-display); color: var(--gold); font-size: 1.8rem; margin-bottom: var(--space-md);">
+            Congratulations, ${state.currentTeam?.name || 'Warrior'}!
+          </h3>
+
+          <p style="color: var(--text-secondary); font-style: italic; margin-bottom: var(--space-xl);">
+            You have successfully decoded the ancient Codex and preserved the legacy of Mahabharata. Your name shall be etched in the halls of Hastinapur!
+          </p>
+
+          <div style="padding: var(--space-xl); background: rgba(201,168,76,0.1); border: 1px solid var(--gold); border-radius: var(--radius-md); margin-bottom: var(--space-2xl);">
+            <p style="color:var(--gold-light); font-size:0.9rem; letter-spacing:1px; margin-bottom:5px;">FINAL SCORE</p>
+            <h2 style="font-size:3rem; color:var(--gold); font-family:var(--font-accent);">${state.currentTeam?.score || 0} Points</h2>
+          </div>
+
+          <button class="btn btn-primary" onclick="router.navigate('/leaderboard')">
+            View Hall of Warriors
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderAdmin() {
   const app = document.getElementById('app');
   if (!state.adminLoggedIn) {
@@ -1063,80 +1163,75 @@ function renderAdmin() {
   // Dashboard View
   app.innerHTML = `
     ${renderNav('admin')}
-    <div class="page" style="padding-top:20px; padding-bottom:50px;">
-      <section class="section">
-        <h2 class="section-title">Admin Sabha</h2>
-        <div class="rounds-grid">
-
-          <div class="ancient-card">
-            <h3 style="color:var(--gold); margin-bottom:10px; font-family:var(--font-ui);">Game Control</h3>
-            <div style="display:flex; gap:10px; margin-bottom: 15px;">
-              <button id="btn-create-game" class="btn btn-primary" onclick="adminCreateGame()">Create/Reset Game</button>
-              <button class="btn btn-outline" style="color:var(--sindoor); border-color:var(--sindoor);" onclick="adminToggleGame(false)">Halt Game</button>
-            </div>
-
-            <h4 style="color:var(--text-secondary); margin-bottom:10px; font-size:0.85rem; text-transform:uppercase; letter-spacing:2px;">Set Active Round</h4>
-            <div style="display:flex; gap:5px; margin-bottom: 15px;">
-              <button class="btn btn-outline" style="padding: 8px 15px;" onclick="adminSetRound(1)">Round 1</button>
-              <button class="btn btn-outline" style="padding: 8px 15px;" onclick="adminSetRound(2)">Round 2</button>
-              <button class="btn btn-outline" style="padding: 8px 15px;" onclick="adminSetRound(3)">Round 3</button>
-            </div>
-
-            <p style="margin-top:10px; font-size:0.8rem; color:var(--text-muted);" id="admin-game-status">Game Status: Unknown</p>
-          </div>
-
-          <div class="ancient-card">
-            <h3 style="color:var(--gold); margin-bottom:10px; font-family:var(--font-ui);">Add Team</h3>
-            <form onsubmit="adminAddTeam(event)" style="display:flex; flex-direction:column; gap:10px;">
-              <input class="form-input" id="admin-team-name" placeholder="Team Name" required />
-              <input class="form-input" id="admin-team-code" placeholder="Secret Access Code" required />
-              <button type="submit" class="btn btn-sindoor">Add Team to Lobby</button>
-            </form>
-          </div>
+    <div class="page" style="padding-top:20px; padding-bottom:100px;">
+      <div class="container">
+        <div class="text-center mb-3">
+          <p class="section-sanskrit">॥ प्रशासन सभा ॥</p>
+          <h2 class="section-title">Admin Dashboard</h2>
+          <p class="section-subtitle">Real-time management of the sacred Codex Hunt.</p>
         </div>
 
-        <div class="ancient-card" style="margin-top:20px; overflow-x:auto;">
-          <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-ui);">Lobby & Teams</h3>
-          <table class="leaderboard-table" style="width:100%;">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Code</th>
-                <th>Status</th>
-                <th>Score</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="admin-teams-list">
-              <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
-            </tbody>
-          </table>
+        <div class="admin-grid">
+          <div class="admin-card">
+            <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-accent); font-size:1.1rem;">Game Mastery</h3>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <div style="display:flex; gap:10px;">
+                <button id="btn-create-game" class="btn btn-primary" style="flex:1" onclick="adminCreateGame()">Init Game</button>
+                <button class="btn btn-outline" style="color:var(--sindoor); border-color:var(--sindoor);" onclick="adminToggleGame(false)">Halt</button>
+              </div>
+              
+              <div style="margin-top:10px;">
+                <p style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; letter-spacing:1px;">Active Phase</p>
+                <div style="display:flex; gap:8px;">
+                  <button class="btn btn-outline" style="padding: 6px 12px; font-size:0.8rem; flex:1" onclick="adminSetRound(1)">R1</button>
+                  <button class="btn btn-outline" style="padding: 6px 12px; font-size:0.8rem; flex:1" onclick="adminSetRound(2)">R2</button>
+                  <button class="btn btn-outline" style="padding: 6px 12px; font-size:0.8rem; flex:1" onclick="adminSetRound(3)">R3</button>
+                </div>
+              </div>
+
+              <div id="admin-game-status" style="margin-top:15px; padding:10px; background:rgba(0,0,0,0.3); border-radius:var(--radius-sm); font-size:0.75rem; color:var(--gold-light);">
+                Loading status...
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-card">
+            <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-accent); font-size:1.1rem;">Recruit Team</h3>
+            <form onsubmit="adminAddTeam(event)" style="display:flex; flex-direction:column; gap:12px;">
+              <input class="form-input" id="admin-team-name" placeholder="Team Name" required style="background:rgba(0,0,0,0.2)" />
+              <input class="form-input" id="admin-team-code" placeholder="Secret Access Code" required style="background:rgba(0,0,0,0.2)" />
+              <button type="submit" class="btn btn-sindoor">Enlist Warrior Team</button>
+            </form>
+          </div>
         </div>
 
         <div style="margin-top:40px;">
-          <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-ui); font-size:1.5rem;">Manage Codex Riddles</h3>
-
-          <div class="ancient-card" style="margin-bottom: 20px;">
-            <h4 style="color:var(--text-primary); margin-bottom:10px;">Add New Riddle / Shloka</h4>
-            <form onsubmit="adminAddRiddle(event)" style="display:flex; flex-direction:column; gap:10px;">
-              <select name="round" class="form-input" style="background:var(--bg-dark)" required>
-                <option value="1">Round 1</option>
-                <option value="2">Round 2</option>
-                <option value="3">Round 3</option>
-              </select>
-              <textarea name="shloka" class="form-input" placeholder="Sanskrit Shloka..." rows="2" required></textarea>
-              <input type="text" name="translation" class="form-input" placeholder="Translation / Context" required />
-              <textarea name="riddle" class="form-input" placeholder="The actual Riddle..." rows="2" required></textarea>
-              <input type="text" name="answer" class="form-input" placeholder="Answer / Code / Location" required />
-              <button type="submit" class="btn btn-primary">Save to Codex</button>
-            </form>
-          </div>
-
-          <div class="rounds-grid" id="admin-riddles-list">
-            <p>Loading Riddles...</p>
+          <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-accent); text-align:center;">Team Monitor — Live Pulse</h3>
+          <div id="admin-teams-grid" class="team-monitor-grid">
+            <div style="grid-column: 1/-1; text-align:center; padding: 50px; color:var(--text-muted);">Consulting the Akashic records...</div>
           </div>
         </div>
-      </section>
+
+        <div style="margin-top:60px;">
+          <h3 style="color:var(--gold); margin-bottom:20px; font-family:var(--font-accent); text-align:center;">Codex Management</h3>
+          <div class="admin-card" style="max-width:800px; margin: 0 auto 30px;">
+            <h4 style="color:var(--text-primary); margin-bottom:15px; font-family:var(--font-ui);">Draft New Riddle</h4>
+            <form onsubmit="adminAddRiddle(event)" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+              <select name="round" class="form-input" style="background:var(--bg-dark); grid-column: span 2;" required>
+                <option value="1">Round 1: The Signal</option>
+                <option value="2">Round 2: Mini Treasure Hunt</option>
+                <option value="3">Round 3: The Codex</option>
+              </select>
+              <textarea name="shloka" class="form-input" placeholder="Sanskrit Shloka..." rows="2" required></textarea>
+              <input type="text" name="translation" class="form-input" placeholder="Translation" required />
+              <textarea name="riddle" class="form-input" placeholder="Riddle Text..." rows="2" required></textarea>
+              <input type="text" name="answer" class="form-input" placeholder="Answer/Code" required />
+              <button type="submit" class="btn btn-primary" style="grid-column: span 2;">Add to Codex</button>
+            </form>
+          </div>
+          <div id="admin-riddles-list" class="admin-grid"></div>
+        </div>
+      </div>
     </div>
     `;
 
@@ -1149,7 +1244,16 @@ function renderAdmin() {
     const el = document.getElementById('admin-game-status');
     if (el) {
       if (game) {
-        el.innerText = `Game Active: ${game.isActive ? 'Yes' : 'No'} | Current Round: ${game.currentRound} `;
+        el.innerHTML = `
+          <div style="display:flex; justify-content:space-between;">
+            <span>Game Active:</span> 
+            <span style="color:${game.isActive ? 'var(--success-light)' : 'var(--sindoor)'}">${game.isActive ? 'YES' : 'NO'}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:5px;">
+            <span>Current Round:</span> 
+            <span style="color:var(--gold)">Round ${game.currentRound}</span>
+          </div>
+        `;
       } else {
         el.innerText = 'Game Status: Offline / Not Created';
       }
@@ -1157,30 +1261,66 @@ function renderAdmin() {
   });
 
   unsubscribeTeams = dbAdmin.listenToTeams((teams) => {
-    const list = document.getElementById('admin-teams-list');
-    if (!list) return;
+    const grid = document.getElementById('admin-teams-grid');
+    if (!grid) return;
 
-    // Sort by score
     teams.sort((a, b) => b.score - a.score);
 
-    list.innerHTML = teams.map(t => `
-      < tr >
-        <td>${t.name}</td>
-        <td style="color:var(--gold-dark);">${t.code}</td>
-        <td>
-           <span style="color: ${t.status === 'qualified' ? 'var(--success-light)' : t.status === 'disqualified' ? 'var(--sindoor)' : 'var(--text-muted)'};">
-             ${t.status.toUpperCase()}
-           </span>
-        </td>
-        <td>${t.score}</td>
-        <td style="display:flex; gap:5px;">
-          <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem;" onclick="adminUpdateScore('${t.id}')">Score</button>
-          <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem; color:var(--success-light); border-color:var(--success-light);" onclick="adminSetStatus('${t.id}', 'qualified')">Q</button>
-          <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem; color:var(--sindoor); border-color:var(--sindoor);" onclick="adminSetStatus('${t.id}', 'disqualified')">DQ</button>
-          <button class="btn btn-outline" style="padding: 5px 10px; font-size:0.6rem; color:#888; border-color:#888;" onclick="adminDeleteTeam('${t.id}')">Del</button>
-        </td>
-      </tr >
-      `).join('') || '<tr><td colspan="5" style="text-align:center;">No teams found</td></tr>';
+    grid.innerHTML = teams.map(t => {
+      const lastSeen = t.lastActivityAt ? new Date(t.lastActivityAt.seconds * 1000).toLocaleTimeString() : 'N/A';
+      const progressLabel = t.progress ?
+        (t.progress.round3?.currentClue > 0 ? `Codex: Clue ${t.progress.round3.currentClue}` :
+          t.progress.round2?.currentLocation > 0 ? `Hunt: Location ${t.progress.round2.currentLocation}` :
+            `Signal: Riddle ${t.progress.round1?.currentRiddle || 0}`) : 'Not Started';
+
+      const statusClass = t.status === 'qualified' ? 'status-q' : t.status === 'disqualified' ? 'status-dq' : 'status-l';
+
+      return `
+        <div class="team-admin-card ${!t.sessionActive ? 'offline' : ''}">
+          <div class="team-admin-header">
+            <div>
+              <div class="team-admin-name">${t.name}</div>
+              <div class="team-admin-code">ID: ${t.code}</div>
+            </div>
+            <div class="team-admin-status ${statusClass}">${t.status.toUpperCase()}</div>
+          </div>
+
+          <div class="team-admin-stats">
+            <div class="stat-box">
+              <div class="stat-label">Valor (Score)</div>
+              <div class="stat-value">${t.score || 0} pts</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Current Quest</div>
+              <div class="stat-value">${progressLabel}</div>
+            </div>
+          </div>
+
+          <div class="team-admin-location">
+            <div class="location-title">
+              <span>📍</span> Last Recorded Location
+            </div>
+            <div class="location-text">${t.lastLocation || 'At the Gates'}</div>
+            <div class="pulse-info">Last Pulse: ${lastSeen}</div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
+            <div class="session-indicator">
+              <div class="${t.sessionActive ? 'dot-online' : 'dot-offline'}"></div>
+              <span style="color:${t.sessionActive ? 'var(--success-light)' : 'var(--text-muted)'}">${t.sessionActive ? 'LINKED' : 'UNLINKED'}</span>
+            </div>
+            <div style="font-size:0.6rem; color:var(--text-muted);">Joined: ${t.joinedAt ? new Date(t.joinedAt.seconds * 1000).toLocaleTimeString() : '?'}</div>
+          </div>
+
+          <div class="team-admin-actions">
+            <button title="Update Score" class="action-btn btn-pts" onclick="adminUpdateScore('${t.id}')">Pts</button>
+            <button title="Qualify" class="action-btn btn-q ${t.status === 'qualified' ? 'active-q' : ''}" onclick="adminSetStatus('${t.id}', 'qualified')">Q</button>
+            <button title="Disqualify" class="action-btn btn-dq ${t.status === 'disqualified' ? 'active-q' : ''}" onclick="adminSetStatus('${t.id}', 'disqualified')">DQ</button>
+            <button title="Remove Team" class="action-btn btn-del" onclick="adminDeleteTeam('${t.id}')">Del</button>
+          </div>
+        </div>
+      `;
+    }).join('') || '<div style="grid-column: 1/-1; text-align:center; padding: 50px; color:var(--text-muted);">No teams have entered the Sabha yet.</div>';
   });
 
   unsubscribeRiddles = dbAdmin.listenToRiddles((riddles) => {

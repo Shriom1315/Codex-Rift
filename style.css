@@ -40,6 +40,7 @@
   --font-sanskrit: 'Noto Serif Devanagari', serif;
   --font-body: 'Lora', serif;
   --font-ui: 'Outfit', sans-serif;
+  --font-accent: 'Cinzel', serif;
 
   /* Spacing */
   --space-xs: 0.25rem;
@@ -691,11 +692,11 @@ body::after {
 
 /* --- Team Login --- */
 .login-page {
-  min-height: 100vh;
+  min-height: calc(100vh - 100px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: var(--space-4xl) var(--space-xl);
+  padding: var(--space-xl);
   position: relative;
 }
 
@@ -708,8 +709,9 @@ body::after {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: var(--space-3xl);
+  padding: var(--space-2xl) var(--space-xl);
   position: relative;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
 .login-card::before {
@@ -732,21 +734,21 @@ body::after {
 }
 
 .login-chakra {
-  width: 60px;
-  height: 60px;
-  margin: 0 auto var(--space-xl);
+  width: 50px;
+  height: 50px;
+  margin: 0 auto var(--space-md);
   display: block;
   opacity: 0.8;
 }
 
 .login-title {
   font-family: var(--font-display);
-  font-size: 1.8rem;
+  font-size: 1.6rem;
   letter-spacing: 4px;
   text-transform: uppercase;
   text-align: center;
   color: var(--gold-light);
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-xs);
 }
 
 .login-sanskrit {
@@ -755,11 +757,11 @@ body::after {
   text-align: center;
   color: var(--gold);
   opacity: 0.7;
-  margin-bottom: var(--space-2xl);
+  margin-bottom: var(--space-xl);
 }
 
 .form-group {
-  margin-bottom: var(--space-lg);
+  margin-bottom: var(--space-md);
 }
 
 .form-label {
@@ -774,13 +776,13 @@ body::after {
 
 .form-input {
   width: 100%;
-  padding: var(--space-md) var(--space-lg);
+  padding: 0.75rem var(--space-md);
   background: var(--bg-dark);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-family: var(--font-body);
-  font-size: 1rem;
+  font-size: 0.95rem;
   transition: all 0.3s ease;
   outline: none;
 }
@@ -797,10 +799,8 @@ body::after {
 
 .login-btn {
   width: 100%;
-  margin-top: var(--space-md);
+  margin-top: var(--space-sm);
   justify-content: center;
-  font-size: 0.85rem;
-  padding: var(--space-lg);
 }
 
 .login-ornament {
@@ -913,34 +913,41 @@ body::after {
 }
 
 .riddle-number-badge {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   margin: 0 auto var(--space-xl);
-  border-radius: 0;
-  border: 1px solid var(--border-gold);
+  border: 1px solid var(--gold);
   transform: rotate(45deg);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-card-hover);
+  background: var(--bg-dark);
+  box-shadow: 0 0 15px var(--glow-gold);
+  position: relative;
+  z-index: 1;
 }
 
 .riddle-number-badge::before {
-  content: counter(riddle);
-  /* if we use list, else can just rotate content back inside */
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 1px solid var(--border-gold);
+  opacity: 0.5;
 }
 
-/* Since text gets rotated inside, we could use a pseudo element or rotate text */
 .riddle-number-badge {
-  font-family: var(--font-ui);
-  font-size: 1.2rem;
+  font-family: var(--font-accent);
+  font-size: 1.4rem;
   font-weight: 700;
   color: var(--gold-light);
+  letter-spacing: 0;
+  text-shadow: 0 0 10px rgba(201, 168, 76, 0.4);
 }
 
 .unrotate {
   transform: rotate(-45deg);
   display: block;
+  line-height: normal;
 }
 
 .shloka-block {
@@ -1388,35 +1395,107 @@ body::after {
   padding: var(--space-xl);
 }
 
-.leaderboard-table {
-  width: 100%;
-  border-collapse: collapse;
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
   margin-top: var(--space-xl);
 }
 
-.leaderboard-table th {
-  font-family: var(--font-ui);
-  font-size: 0.65rem;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  padding: var(--space-md) var(--space-lg);
-  border-bottom: 2px solid var(--border);
-  text-align: left;
+.warrior-card {
+  display: flex;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-lg);
+  gap: var(--space-lg);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
-.leaderboard-table td {
-  padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--border);
-  font-family: var(--font-body);
-  font-size: 1rem;
-  color: var(--text-secondary);
+.warrior-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid transparent;
+  pointer-events: none;
   transition: all 0.3s ease;
 }
 
-.leaderboard-table tr:hover td {
-  background: rgba(201, 168, 76, 0.03);
-  color: var(--text-primary);
+.warrior-card:hover {
+  background: var(--bg-card-hover);
+  transform: translateX(4px);
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+}
+
+.warrior-card.top-warrior::after {
+  border: 1px solid rgba(201, 168, 76, 0.08);
+}
+
+.warrior-card.top-warrior:hover::after {
+  border-color: var(--border-gold);
+}
+
+.warrior-rank {
+  flex-shrink: 0;
+}
+
+.warrior-info {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.warrior-name {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--gold-light);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  letter-spacing: 1px;
+  flex-wrap: wrap;
+}
+
+.warrior-meta {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  flex-wrap: wrap;
+}
+
+.warrior-dot {
+  color: var(--border);
+  font-size: 0.4rem;
+}
+
+.warrior-score {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.score-value {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  color: var(--gold);
+  line-height: 1;
+}
+
+.score-label {
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-top: 4px;
 }
 
 .rank-badge {
@@ -1455,11 +1534,6 @@ body::after {
   color: var(--text-muted);
 }
 
-.team-name-cell {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-}
 
 .superpower-badge {
   font-size: 0.6rem;
@@ -1847,7 +1921,32 @@ body::after {
   }
 
   .login-card {
-    padding: var(--space-xl);
+    padding: var(--space-lg) var(--space-md);
+  }
+
+  .login-chakra {
+    width: 40px;
+    height: 40px;
+    margin-bottom: var(--space-sm);
+  }
+
+  .login-title {
+    font-size: 1.25rem;
+    letter-spacing: 2px;
+  }
+
+  .login-sanskrit {
+    font-size: 0.8rem;
+    margin-bottom: var(--space-lg);
+  }
+
+  .form-group {
+    margin-bottom: var(--space-sm);
+  }
+
+  .form-input {
+    padding: 0.6rem var(--space-sm);
+    font-size: 0.85rem;
   }
 
   .location-tracker {
@@ -1877,20 +1976,21 @@ body::after {
     top: -8px;
   }
 
-  .leaderboard-table th,
-  .leaderboard-table td {
-    padding: var(--space-sm);
-    font-size: 0.7rem;
+  .warrior-card {
+    padding: var(--space-md);
+    gap: var(--space-sm);
   }
 
-  .rank-badge {
-    width: 24px;
-    height: 24px;
-    font-size: 0.6rem;
+  .warrior-name {
+    font-size: 1.1rem;
   }
 
-  .team-name-cell span {
-    font-size: 0.8rem;
+  .warrior-meta {
+    font-size: 0.65rem;
+  }
+
+  .score-value {
+    font-size: 1.4rem;
   }
 
   /* Shrink Krishna bot for small phones */
@@ -2111,4 +2211,269 @@ body::after {
 
 .hidden {
   display: none !important;
+}
+
+/* --- Admin Sabha Dashboard --- */
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-xl);
+  margin-bottom: var(--space-3xl);
+}
+
+.admin-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-xl);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.admin-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+.team-monitor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: var(--space-xl);
+  margin-top: var(--space-xl);
+}
+
+.team-admin-card {
+  background: rgba(21, 16, 11, 0.8);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  transition: all 0.3s ease;
+}
+
+.team-admin-card:hover {
+  border-color: var(--gold);
+  box-shadow: 0 0 20px var(--glow-gold);
+  transform: translateY(-4px);
+}
+
+.team-admin-card.offline {
+  opacity: 0.7;
+  filter: grayscale(0.5);
+}
+
+.team-admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.team-admin-name {
+  font-family: var(--font-accent);
+  color: var(--gold-light);
+  font-size: 1.2rem;
+  text-shadow: 0 0 10px var(--glow-gold);
+}
+
+.team-admin-code {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+}
+
+.team-admin-status {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.65rem;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.status-q {
+  background: rgba(58, 99, 71, 0.2);
+  color: var(--success-light);
+  border: 1px solid var(--success);
+}
+
+.status-dq {
+  background: rgba(168, 44, 44, 0.2);
+  color: var(--sindoor);
+  border: 1px solid var(--sindoor);
+}
+
+.status-l {
+  background: rgba(94, 80, 58, 0.2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.team-admin-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.stat-box {
+  background: rgba(0, 0, 0, 0.3);
+  padding: var(--space-sm) var(--space-md);
+  border-left: 2px solid var(--gold-dark);
+}
+
+.stat-label {
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.stat-value {
+  color: var(--gold);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.team-admin-location {
+  background: rgba(165, 58, 21, 0.1);
+  border: 1px dashed rgba(165, 58, 21, 0.3);
+  padding: var(--space-md);
+  border-radius: var(--radius-sm);
+}
+
+.location-title {
+  font-size: 0.7rem;
+  color: var(--saffron);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.location-text {
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.pulse-info {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 5px;
+  font-style: italic;
+}
+
+.team-admin-actions {
+  margin-top: auto;
+  padding-top: var(--space-md);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.action-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  padding: 8px 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+}
+
+.action-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--gold-dark);
+  color: var(--gold);
+}
+
+.action-btn.btn-pts {
+  border-color: var(--gold-dark);
+  color: var(--gold);
+}
+
+.action-btn.btn-q {
+  border-color: var(--success);
+  color: var(--success-light);
+}
+
+.action-btn.btn-dq {
+  border-color: var(--sindoor);
+  color: var(--sindoor);
+}
+
+.action-btn.btn-del {
+  border-color: #555;
+  color: #888;
+}
+
+.action-btn.active-q {
+  background: var(--success);
+  color: #fff;
+}
+
+.session-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-family: var(--font-ui);
+}
+
+.dot-online {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success-light);
+  box-shadow: 0 0 10px var(--success-light);
+  animation: pulse 2s infinite;
+}
+
+.dot-offline {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 768px) {
+  .team-monitor-grid {
+    grid-template-columns: 1fr;
+  }
 }

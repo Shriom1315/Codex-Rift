@@ -56,7 +56,17 @@ export const dbAdmin = {
             const q = query(collection(db, "teams"), where("name", "==", teamName), where("code", "==", teamCode));
             const querySnapshot = await getDocs(q);
             if (!querySnapshot.empty) {
-                return { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+                const teamDoc = querySnapshot.docs[0];
+                const teamData = teamDoc.data();
+                const teamId = teamDoc.id;
+
+                // Record login session
+                await updateDoc(doc(db, "teams", teamId), {
+                    lastLoginAt: new Date(),
+                    sessionActive: true
+                });
+
+                return { id: teamId, ...teamData };
             }
             return null;
         } catch (e) {
@@ -98,6 +108,20 @@ export const dbAdmin = {
             return true;
         } catch (e) {
             console.error("Error updating score: ", e);
+            return false;
+        }
+    },
+
+    updateTeamProgress: async (teamId, progressData) => {
+        try {
+            const teamRef = doc(db, "teams", teamId);
+            await updateDoc(teamRef, {
+                ...progressData,
+                lastActivityAt: new Date()
+            });
+            return true;
+        } catch (e) {
+            console.error("Error updating progress: ", e);
             return false;
         }
     },
