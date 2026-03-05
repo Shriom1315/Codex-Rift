@@ -257,8 +257,11 @@ export const dbAdmin = {
                     const superpowers = currentProgress.superpowers || { round1: false, round2: false };
                     superpowers[round] = true;
 
+                    const superpowerName = round === 'round1' ? "Chakra" : "Gandiva";
+
                     transaction.update(teamRef, {
                         "progress.superpowers": superpowers,
+                        superpower: superpowerName,
                         lastActivityAt: new Date()
                     });
 
@@ -305,8 +308,11 @@ export const dbAdmin = {
                     const superpowers = currentProgress.superpowers || { round1: false, round2: false };
                     superpowers[round] = true;
 
+                    const superpowerName = round === 'round1' ? "Chakra" : "Gandiva";
+
                     transaction.update(teamRef, {
                         "progress.superpowers": superpowers,
+                        superpower: superpowerName,
                         lastActivityAt: new Date()
                     });
 
@@ -352,8 +358,11 @@ export const dbAdmin = {
                     const superpowers = progress.superpowers || { round1: false, round2: false };
                     superpowers[round] = true;
 
+                    const superpowerName = round === 'round1' ? "Chakra" : "Gandiva";
+
                     transaction.update(doc(db, "teams", teamId), {
                         "progress.superpowers": superpowers,
+                        superpower: superpowerName,
                         lastActivityAt: new Date()
                     });
                     return { success: true, teamName };

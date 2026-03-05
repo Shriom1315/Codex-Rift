@@ -5,7 +5,7 @@
 import { gameData } from './data.js';
 import { Router } from './router.js';
 import { createHeroShader } from './hero-shader.js';
-import { dbAdmin } from './firebase.js';
+import { dbAdmin, db } from './firebase.js';
 
 // --- App State ---
 const state = {
@@ -350,6 +350,12 @@ window.handleLogin = async function (e) {
         state.superpowers = team.progress.superpowers || state.superpowers;
       }
 
+      // FALLBACK: Sync boolean flags from the 'superpower' string field (for demo data/manual awards)
+      if (team.superpower) {
+        if (team.superpower.includes("Chakra")) state.superpowers.round1 = true;
+        if (team.superpower.includes("Gandiva")) state.superpowers.round2 = true;
+      }
+
       // Initialize unique riddles for Round 1 if not exists
       if (!state.round1.riddles || state.round1.riddles.length > 5) {
         // Shuffle riddles for this team and pick 5
@@ -362,6 +368,35 @@ window.handleLogin = async function (e) {
       }
 
       const round = game.currentRound || 1;
+
+      // Start real-time listener for this team's progress (syncs superpowers instantly)
+      if (window.teamUnsubscribe) window.teamUnsubscribe();
+      const { onSnapshot, doc } = await import("firebase/firestore");
+
+      window.teamUnsubscribe = onSnapshot(doc(db, "teams", team.id), (docSnap) => {
+        if (!docSnap.exists()) return;
+        const updatedTeam = docSnap.data();
+
+        // Sync superpowers
+        if (updatedTeam.progress && updatedTeam.progress.superpowers) {
+          const oldPowers = JSON.stringify(state.superpowers);
+          state.superpowers = updatedTeam.progress.superpowers;
+
+          // Fallback sync from string field if booleans are missing
+          if (updatedTeam.superpower) {
+            if (updatedTeam.superpower.includes("Chakra")) state.superpowers.round1 = true;
+            if (updatedTeam.superpower.includes("Gandiva")) state.superpowers.round2 = true;
+          }
+
+          // If powers changed, re-render current page
+          if (oldPowers !== JSON.stringify(state.superpowers)) {
+            const path = window.router.currentPath;
+            if (path === '/round2') renderRound2();
+            if (path === '/round3') renderRound3();
+            if (path.includes('round1')) renderRound1();
+          }
+        }
+      });
 
       if (round === 1) router.navigate('/round1');
       else if (round === 2) router.navigate('/round2');
@@ -671,16 +706,29 @@ function renderRound2() {
           </div>
 
           <!-- Superpower Usage -->
-          ${state.superpowers.round1 ? `
-            <div class="superpower-action mt-3">
-              <button class="btn btn-primary" onclick="useRound1Power()" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border: none; box-shadow: 0 0 15px var(--glow-gold);">
-                🪯 Invoke Sudarshana Chakra
-              </button>
-              <p style="font-size: 0.65rem; color: var(--gold-light); margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">
-                Skip this location with divine power (Single Use)
+          <div class="superpowers-container mt-3">
+            <p class="code-label" style="font-size: 0.55rem; color: var(--gold-dark); margin-bottom: 15px;">Divine Assistance</p>
+            
+            ${(!state.superpowers.round1) ? `
+              <p style="font-size: 0.7rem; color: var(--text-muted); font-style: italic; margin-bottom: 5px;">
+                No divine boons currently available in your quiver.
               </p>
-            </div>
-          ` : ''}
+              <p style="font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">
+                Earn them by visiting the Claim Sabha after Round I.
+              </p>
+            ` : ''}
+
+            ${state.superpowers.round1 ? `
+              <div class="superpower-action">
+                <button class="btn btn-primary" onclick="useRound1Power()" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border: none; box-shadow: 0 0 15px var(--glow-gold); width: 100%;">
+                  🪯 Invoke Sudarshana Chakra
+                </button>
+                <p style="font-size: 0.65rem; color: var(--gold-light); margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">
+                  Skip this location with divine power (Single Use)
+                </p>
+              </div>
+            ` : ''}
+          </div>
         </div>
       </div>
       ${renderKrishnaBot(location.hint)}
@@ -894,16 +942,40 @@ function renderRound3() {
           </div>
 
           <!-- Superpower Usage -->
-          ${state.superpowers.round2 ? `
-            <div class="superpower-action mt-3">
-              <button class="btn btn-sindoor" onclick="useRound2Power()" style="background: linear-gradient(135deg, var(--sindoor), var(--sindoor-dark)); border: none; box-shadow: 0 0 15px var(--sindoor);">
-                🏹 Shoot Gandiva's Arrow
-              </button>
-              <p style="font-size: 0.65rem; color: var(--sindoor); margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">
-                Instantly reveal this clue's location code (Single Use)
+          <div class="superpowers-container mt-3">
+            <p class="code-label" style="font-size: 0.55rem; color: var(--gold-dark); margin-bottom: 15px;">Divine Assistance</p>
+            
+            ${(!state.superpowers.round1 && !state.superpowers.round2) ? `
+              <p style="font-size: 0.7rem; color: var(--text-muted); font-style: italic; margin-bottom: 5px;">
+                No divine boons currently available in your quiver.
               </p>
-            </div>
-          ` : ''}
+              <p style="font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">
+                Earn them by being first in trials or visit the Claim Sabha.
+              </p>
+            ` : ''}
+
+            ${state.superpowers.round1 ? `
+              <div class="superpower-action">
+                <button class="btn btn-primary" onclick="useRound1Power()" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border: none; box-shadow: 0 0 15px var(--glow-gold); width: 100%; margin-bottom: 10px;">
+                  🪯 Invoke Sudarshana Chakra
+                </button>
+                <p style="font-size: 0.65rem; color: var(--gold-light); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;">
+                  Skip this trial with divine power (Single Use)
+                </p>
+              </div>
+            ` : ''}
+            
+            ${state.superpowers.round2 ? `
+              <div class="superpower-action">
+                <button class="btn btn-sindoor" onclick="useRound2Power()" style="background: linear-gradient(135deg, var(--sindoor), var(--sindoor-dark)); border: none; box-shadow: 0 0 15px var(--sindoor); width: 100%;">
+                  🏹 Shoot Gandiva's Arrow
+                </button>
+                <p style="font-size: 0.65rem; color: var(--sindoor); margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">
+                  Instantly reveal this clue's location code (Single Use)
+                </p>
+              </div>
+            ` : ''}
+          </div>
         </div>
       </div>
       ${renderKrishnaBot(clue.hint)}
@@ -953,25 +1025,46 @@ window.checkRound3Code = function () {
 };
 
 window.useRound1Power = function () {
-  if (!confirm("Invoke the Sudarshana Chakra to skip this location? This divine power is single-use.")) return;
+  const isRound2 = window.router.currentPath === '/round2';
+  const isRound3 = window.router.currentPath === '/round3';
 
-  const location = gameData.round2Locations[state.round2.currentLocation];
-  state.round2.solved.push(state.round2.currentLocation);
-  state.round2.codes[state.round2.currentLocation] = "POWER_USED";
-  state.round2.currentLocation++;
-  state.superpowers.round1 = false; // Single use
+  if (!confirm(`Invoke the Sudarshana Chakra to skip this ${isRound3 ? 'clue' : 'location'}? This divine power is single-use.`)) return;
 
-  dbAdmin.updateTeamProgress(state.currentTeam.id, {
-    progress: {
-      round1: state.round1,
-      round2: state.round2,
-      round3: state.round3,
-      superpowers: state.superpowers
-    },
-    lastLocation: "Used Sudarshana Chakra at " + location.locationName
-  });
+  if (isRound2) {
+    const location = gameData.round2Locations[state.round2.currentLocation];
+    state.round2.solved.push(state.round2.currentLocation);
+    state.round2.codes[state.round2.currentLocation] = "POWER_USED";
+    state.round2.currentLocation++;
+    state.superpowers.round1 = false;
 
-  renderRound2();
+    dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      progress: {
+        round1: state.round1,
+        round2: state.round2,
+        round3: state.round3,
+        superpowers: state.superpowers
+      },
+      lastLocation: "Used Sudarshana Chakra at " + location.locationName
+    });
+    renderRound2();
+  } else if (isRound3) {
+    const clue = gameData.round3Clues[state.round3.currentClue];
+    state.round3.solved.push(state.round3.currentClue);
+    state.round3.codes[state.round3.currentClue] = "POWER_USED";
+    state.round3.currentClue++;
+    state.superpowers.round1 = false;
+
+    dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      progress: {
+        round1: state.round1,
+        round2: state.round2,
+        round3: state.round3,
+        superpowers: state.superpowers
+      },
+      lastLocation: "Used Sudarshana Chakra at " + clue.locationName
+    });
+    renderRound3();
+  }
 };
 
 window.useRound2Power = function () {
