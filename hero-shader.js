@@ -10,6 +10,7 @@ precision highp float;
 out vec4 O;
 uniform vec2 resolution;
 uniform float time;
+uniform float isMobile; // Added uniform to toggle complexity
 #define FC gl_FragCoord.xy
 #define T time
 #define R resolution
@@ -33,7 +34,9 @@ float noise(in vec2 p) {
 // Returns a pseudo random number for a given point (fractal noise)
 float fbm(vec2 p) {
   float t=.0, a=1.; mat2 m=mat2(1.,-.5,.2,1.2);
+  int oct = isMobile > 0.5 ? 3 : 5; // Reduce iterations on mobile
   for (int i=0; i<5; i++) {
+    if (i >= oct) break;
     t+=a*noise(p);
     p*=2.*m;
     a*=.5;
@@ -42,7 +45,9 @@ float fbm(vec2 p) {
 }
 float clouds(vec2 p) {
 	float d=1., t=.0;
+	float oct = isMobile > 0.5 ? 2. : 3.;
 	for (float i=.0; i<3.; i++) {
+		if (i >= oct) break;
 		float a=d*fbm(i*10.+p.x*.2+.2*(1.+i)*p.y+d+i*i+p);
 		t=mix(t,d,a);
 		d=a;
@@ -55,7 +60,9 @@ void main(void) {
 	vec3 col=vec3(0);
 	float bg=clouds(vec2(st.x+T*.5,-st.y));
 	uv*=1.-.3*(sin(T*.2)*.5+.5);
+	float loops = isMobile > 0.5 ? 7. : 12.;
 	for (float i=1.; i<12.; i++) {
+		if (i >= loops) break;
 		uv+=.1*cos(i*vec2(.1+.01*i, .8)+i*i+T*.5+.1*uv.x);
 		vec2 p=uv;
 		float d=length(p);
@@ -185,13 +192,14 @@ void main(){gl_Position=position;}`;
 
         program.resolution = gl.getUniformLocation(program, 'resolution');
         program.time = gl.getUniformLocation(program, 'time');
+        program.isMobile = gl.getUniformLocation(program, 'isMobile'); // Added
         program.move = gl.getUniformLocation(program, 'move');
         program.touch = gl.getUniformLocation(program, 'touch');
         program.pointerCount = gl.getUniformLocation(program, 'pointerCount');
         program.pointers = gl.getUniformLocation(program, 'pointers');
     }
 
-    render(now = 0) {
+    render(now = 0, isMobile = false) { // Added isMobile param
         const gl = this.gl;
         const program = this.program;
 
@@ -204,6 +212,7 @@ void main(){gl_Position=position;}`;
 
         gl.uniform2f(program.resolution, this.canvas.width, this.canvas.height);
         gl.uniform1f(program.time, now * 1e-3);
+        gl.uniform1f(program.isMobile, isMobile ? 1.0 : 0.0); // Pass to shader
         gl.uniform2f(program.move, ...this.mouseMove);
         gl.uniform2f(program.touch, ...this.mouseCoords);
         gl.uniform1i(program.pointerCount, this.nbrOfPointers);
@@ -283,7 +292,8 @@ export function createHeroShader(canvasId) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
-    const dpr = Math.max(1, 0.5 * window.devicePixelRatio);
+    const isMobile = () => window.innerWidth < 768;
+    const dpr = isMobile() ? 1.0 : Math.max(1, 0.5 * window.devicePixelRatio);
     const renderer = new WebGLRenderer(canvas, dpr);
     const pointers = new PointerHandler(canvas, dpr);
 
@@ -291,10 +301,11 @@ export function createHeroShader(canvasId) {
     renderer.init();
 
     const resize = () => {
-        canvas.width = window.innerWidth * dpr;
-        canvas.height = window.innerHeight * dpr;
+        const currentDpr = isMobile() ? 1.0 : Math.max(1, 0.5 * window.devicePixelRatio);
+        canvas.width = window.innerWidth * currentDpr;
+        canvas.height = window.innerHeight * currentDpr;
         if (renderer) {
-            renderer.updateScale(dpr);
+            renderer.updateScale(currentDpr);
         }
     };
 
@@ -316,7 +327,7 @@ export function createHeroShader(canvasId) {
         renderer.updatePointerCount(pointers.count);
         renderer.updatePointerCoords(pointers.coords);
         renderer.updateMove(pointers.move);
-        renderer.render(now);
+        renderer.render(now, isMobile());
         animationFrameId = requestAnimationFrame(loop);
     };
 

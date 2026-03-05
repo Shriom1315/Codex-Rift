@@ -107,6 +107,16 @@ body::after {
   background: radial-gradient(ellipse at center, transparent 0%, var(--bg-dark) 80%);
   pointer-events: none;
   z-index: -1;
+  will-change: transform;
+  /* Hint for browser */
+}
+
+@media (max-width: 768px) {
+  body::after {
+    background: var(--bg-dark);
+    /* Solid background on mobile to save GPU */
+    opacity: 0.9;
+  }
 }
 
 /* --- Scrollbar --- */
@@ -329,14 +339,24 @@ body::after {
 
 .page {
   opacity: 0;
-  transform: translateY(20px);
-  animation: pageEnter 0.8s ease forwards;
+  transform: translateY(10px);
+  animation: pageEnter 0.5s ease forwards;
+  will-change: transform, opacity;
 }
 
 @keyframes pageEnter {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Reduced motion for performance */
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
 
@@ -375,7 +395,17 @@ body::after {
   height: 120px;
   animation: slowSpin 15s linear infinite;
   margin-bottom: var(--space-xl);
-  filter: drop-shadow(0 0 20px var(--glow-gold));
+  filter: drop-shadow(0 0 15px var(--glow-gold));
+  will-change: transform;
+}
+
+@media (max-width: 768px) {
+  .hero-chakra {
+    animation-duration: 30s;
+    /* Slower spin = less frequent redraws */
+    filter: none;
+    /* Drop shadow is heavy */
+  }
 }
 
 @keyframes slowSpin {
@@ -2085,8 +2115,7 @@ body::after {
 
 .krishna-chat-panel {
   width: 320px;
-  background: rgba(18, 12, 5, 0.95);
-  backdrop-filter: blur(10px);
+  background: var(--bg-parchment);
   border: 1px solid var(--border-gold);
   border-radius: var(--radius-md);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
@@ -2098,6 +2127,14 @@ body::after {
   pointer-events: none;
   transition: all 0.3s ease;
   transform-origin: bottom right;
+  will-change: transform, opacity;
+}
+
+@media (min-width: 769px) {
+  .krishna-chat-panel {
+    background: rgba(18, 12, 5, 0.95);
+    backdrop-filter: blur(10px);
+  }
 }
 
 .krishna-chat-panel.open {

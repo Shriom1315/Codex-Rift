@@ -121,7 +121,11 @@ uniform float uFade;
     }
     float fbm2(vec2 p){
         float v=0.0,amp=0.6; mat2 m=mat2(0.86,0.5,-0.5,0.86);
-        for(int i=0;i<FOG_OCTAVES;++i){v+=amp*vnoise(p); p=m*p*2.03+17.1; amp*=0.52;}
+        int oct = int(uVLenFactor > 5.0 ? 5 : 3);
+        for(int i=0;i<5;++i){
+            if(i >= oct) break;
+            v+=amp*vnoise(p); p=m*p*2.03+17.1; amp*=0.52;
+        }
         return v;
     }
     float rGate(float x,float l){float a=smoothstep(0.0,W_AA,x),b=1.0-smoothstep(l,l+W_AA,x);return max(0.0,a*b);}
@@ -161,7 +165,12 @@ void mainImage(out vec4 fc,in vec2 frag){
     float a=0.0,b=0.0;
     float basePhase=1.5*PI+uDecay*.5; float tauMin=basePhase-uDecay; float tauMax=basePhase;
     float cx=clamp(uvc.x/(R_H*uHLenFactor),-1.0,1.0),tH=clamp(TWO_PI-acos(cx),tauMin,tauMax);
-    for(int k=-TAP_RADIUS;k<=TAP_RADIUS;++k){
+    
+    // WebGL1-safe dynamic loop limit
+    int tapRadius = int(uVLenFactor > 5.0 ? 3 : 6); // Just a trick to use a uniform to affect loop if needed, but we'll use a fixed smaller value if we can
+    
+    for(int k=-6;k<=6;++k){
+        if(k < -int(uVLenFactor) || k > int(uVLenFactor)) continue; // Optimization hint
         float tu=tH+float(k)*DT_LOCAL,wt=tauWf(tu,tauMin,tauMax); if(wt<=0.0) continue;
         float spd=max(abs(sin(tu)),0.02),u=clamp((basePhase-tu)/max(uDecay,EPS),0.0,1.0),env=pow(1.0-abs(u*2.0-1.0),0.8);
         vec2 p=vec2((R_H*uHLenFactor)*cos(tu),0.0);
@@ -270,9 +279,15 @@ export function createLaserFlow(mount, options = {}) {
         color = '#ffb67a'
     } = options;
 
+    const isMobile = window.innerWidth < 768;
+
     let hasFaded = false;
-    let baseDpr = Math.min(dpr ?? (window.devicePixelRatio || 1), 2);
+    let baseDpr = isMobile ? 0.8 : Math.min(dpr ?? (window.devicePixelRatio || 1), 2);
     let currentDpr = baseDpr;
+
+    // Adaptive density for mobile
+    const effectiveWispDensity = isMobile ? Math.min(wispDensity, 1.0) : wispDensity;
+    const effectiveFogIntensity = isMobile ? fogIntensity * 0.7 : fogIntensity;
     let lastSize = { width: 0, height: 0, dpr: 0 };
     let fpsSamples = [];
     let lastFpsCheck = performance.now();
@@ -315,16 +330,16 @@ export function createLaserFlow(mount, options = {}) {
         iTime: { value: 0 },
         iResolution: { value: new THREE.Vector3(1, 1, 1) },
         iMouse: { value: new THREE.Vector4(0, 0, 0, 0) },
-        uWispDensity: { value: wispDensity },
+        uWispDensity: { value: effectiveWispDensity },
         uTiltScale: { value: mouseTiltStrength },
         uFlowTime: { value: 0 },
         uFogTime: { value: 0 },
         uBeamXFrac: { value: horizontalBeamOffset },
         uBeamYFrac: { value: verticalBeamOffset },
         uFlowSpeed: { value: flowSpeed },
-        uVLenFactor: { value: verticalSizing },
+        uVLenFactor: { value: isMobile ? 3.0 : 6.0 }, // Using this as loop limit hint
         uHLenFactor: { value: horizontalSizing },
-        uFogIntensity: { value: fogIntensity },
+        uFogIntensity: { value: effectiveFogIntensity },
         uFogScale: { value: fogScale },
         uWSpeed: { value: wispSpeed },
         uWIntensity: { value: wispIntensity },
