@@ -2477,3 +2477,148 @@ body::after {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Claim Page --- */
+.claim-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, rgba(13, 10, 4, 0.8) 0%, var(--bg-dark) 100%);
+}
+
+.claim-container {
+  max-width: 600px;
+  width: 100%;
+  padding: var(--space-xl);
+}
+
+.claim-card {
+  padding: var(--space-3xl);
+  border: 2px solid var(--gold-dark);
+}
+
+.claim-instruction {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  color: var(--gold-light);
+  text-align: center;
+  margin-bottom: var(--space-2xl);
+}
+
+.pin-entry-container {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.pin-box {
+  width: 60px;
+  height: 80px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  color: var(--gold);
+  text-transform: uppercase;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+.pin-box:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 20px var(--glow-gold);
+  background: rgba(201, 168, 76, 0.1);
+}
+
+.pin-box.wrong {
+  border-color: var(--sindoor);
+  animation: shake 0.5s ease;
+}
+
+/* Claim Success Overlay */
+.claim-result-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.5s ease;
+}
+
+.claim-result-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.claim-success-content {
+  text-align: center;
+  padding: var(--space-4xl);
+  transform: scale(0.9);
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.claim-result-overlay.active .claim-success-content {
+  transform: scale(1);
+}
+
+.success-chakra {
+  font-size: 8rem;
+  color: var(--gold);
+  margin-bottom: var(--space-xl);
+  animation: slowSpin 10s linear infinite;
+  filter: drop-shadow(0 0 30px var(--glow-gold));
+}
+
+.claim-success-content h2 {
+  font-family: var(--font-display);
+  font-size: 4rem;
+  color: var(--gold-light);
+  margin-bottom: 5px;
+  text-shadow: 0 0 20px var(--glow-gold);
+}
+
+.claim-success-content p {
+  font-family: var(--font-ui);
+  letter-spacing: 5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: var(--space-2xl);
+}
+
+.success-reward {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  color: var(--saffron);
+  padding: var(--space-md) var(--space-2xl);
+  border-top: 1px solid var(--border-gold);
+  border-bottom: 1px solid var(--border-gold);
+  display: inline-block;
+  margin-bottom: var(--space-2xl);
+}
+
+.success-shloka {
+  font-family: var(--font-sanskrit);
+  font-size: 1.2rem;
+  color: var(--gold-dark);
+  opacity: 0.8;
+}
+
+@keyframes slowSpin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}

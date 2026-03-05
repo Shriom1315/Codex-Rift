@@ -34,6 +34,8 @@ window.addEventListener('DOMContentLoaded', () => {
     '/leaderboard': () => renderLeaderboard(),
     '/victory': () => renderRound3Complete(),
     '/admin': () => renderAdmin(),
+    '/admin/superpower': () => renderAdminSuperpowerClaim(),
+    '/claim': () => renderClaimPage(),
   });
 
   window.router = router;
@@ -348,6 +350,17 @@ window.handleLogin = async function (e) {
         state.superpowers = team.progress.superpowers || state.superpowers;
       }
 
+      // Initialize unique riddles for Round 1 if not exists
+      if (!state.round1.riddles || state.round1.riddles.length > 5) {
+        // Shuffle riddles for this team and pick 5
+        const pool = gameData.round1Riddles || [];
+        state.round1.riddles = [...pool].sort(() => Math.random() - 0.5).slice(0, 5);
+        state.round1.shuffled = true;
+
+        // Update database with the assigned riddles
+        dbAdmin.updateTeamProgress(team.id, { "progress.round1": state.round1 });
+      }
+
       const round = game.currentRound || 1;
 
       if (round === 1) router.navigate('/round1');
@@ -376,7 +389,7 @@ window.handleLogin = async function (e) {
 // ROUND 1: THE SIGNAL
 // =====================================================
 function renderRound1() {
-  const riddles = gameData.round1Riddles;
+  const riddles = state.round1.riddles || gameData.round1Riddles;
   const current = state.round1.currentRiddle;
   const riddle = riddles[current];
 
@@ -446,6 +459,10 @@ function renderRound1() {
               Submit
             </button>
           </div>
+          
+          <p style="text-align:center; font-size:0.6rem; color:var(--text-muted); margin-top:15px; text-transform:uppercase; letter-spacing:1px; opacity:0.5;">
+            Sacred Trial Specific to team ${state.currentTeam?.name}
+          </p>
         </div>
       </div>
       ${renderKrishnaBot(riddle.hint)}
@@ -463,23 +480,39 @@ function renderRound1() {
 window.checkRound1Answer = function () {
   const input = document.getElementById('riddle-answer');
   const answer = input.value.trim().toUpperCase();
-  const riddle = gameData.round1Riddles[state.round1.currentRiddle];
+  const riddles = state.round1.riddles || gameData.round1Riddles;
+  const riddle = riddles[state.round1.currentRiddle];
 
   if (answer === riddle.answer.toUpperCase()) {
     input.classList.add('correct');
     state.round1.solved.push(state.round1.currentRiddle);
     state.round1.answers[state.round1.currentRiddle] = answer;
+
+    // Increment Score
+    state.currentTeam.score = (state.currentTeam.score || 0) + 100;
+
     state.round1.currentRiddle++;
+
+    // Calculate Secret Code if finished
+    let secretCode = null;
+    if (state.round1.currentRiddle >= riddles.length) {
+      secretCode = riddles.map((r, i) => {
+        const ans = state.round1.answers[i];
+        return ans ? ans[0] : '';
+      }).join('').toUpperCase();
+      state.round1.secretCode = secretCode;
+    }
 
     // Push to Firebase
     dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      score: state.currentTeam.score,
       progress: {
         round1: state.round1,
         round2: state.round2,
         round3: state.round3,
         superpowers: state.superpowers
       },
-      lastLocation: 'Round 1 - Riddle ' + state.round1.currentRiddle
+      lastLocation: state.round1.currentRiddle >= riddles.length ? 'Round 1 Completed' : 'Round 1 - Riddle ' + state.round1.currentRiddle
     });
 
     setTimeout(() => {
@@ -492,9 +525,8 @@ window.checkRound1Answer = function () {
   }
 };
 
-function renderRound1Complete() {
-  const allAnswers = gameData.round1Riddles.map(r => r.answer);
-  const secretCode = allAnswers.map(a => a[0]).join('');
+async function renderRound1Complete() {
+  const secretCode = state.round1.secretCode;
 
   const app = document.getElementById('app');
   app.innerHTML = `
@@ -511,22 +543,26 @@ function renderRound1Complete() {
 
         <div class="riddle-card" style="text-align: center;">
           <h3 style="font-family: var(--font-display); color: var(--gold); font-size: 1.5rem; margin-bottom: var(--space-lg);">
-            The Secret Code Revealed
+            Your Sacred Code
           </h3>
 
           <p style="font-family: var(--font-ui); font-size: 0.7rem; letter-spacing: 3px; color: var(--text-muted); text-transform: uppercase; margin-bottom: var(--space-md);">
-            Enter the code on the laptop to claim your superpower
+            Present this code at the Public Claim Sabha to earn your superpower
           </p>
 
           <div class="code-input-group">
             ${secretCode.split('').map(ch => `
-              <div class="code-char" style="display:flex;align-items:center;justify-content:center;pointer-events:none;">${ch}</div>
+              <div class="code-char" style="display:flex;align-items:center;justify-content:center;pointer-events:none; border-color:var(--gold); color:var(--gold-light); text-shadow:0 0 10px var(--glow-gold);">${ch}</div>
             `).join('')}
           </div>
 
-          <div class="round-superpower mt-2">
-            <div class="superpower-label">⟡ You have earned ⟡</div>
-            <div class="superpower-name">Chakra of Sudarshana</div>
+          <div id="superpower-status" class="mt-3">
+             <!-- Status shown here if they already secured it -->
+          </div>
+
+          <div style="margin-top:20px; font-size:0.8rem; color:var(--text-muted);">
+            <p>Visit the Claim Page on the shared screen:</p>
+            <p style="color:var(--gold); font-family:monospace; margin-top:5px;">${window.location.origin}/#/claim</p>
           </div>
 
           <button class="btn btn-primary mt-3" onclick="router.navigate('/round2')">
@@ -540,6 +576,16 @@ function renderRound1Complete() {
       </div>
     </div>
   `;
+
+  const statusEl = document.getElementById('superpower-status');
+  if (state.superpowers.round1) {
+    statusEl.innerHTML = `
+        <div class="round-superpower">
+          <div class="superpower-label">⟡ Divine Blessing ⟡</div>
+          <div class="superpower-name">Sudarshana Chakra Active</div>
+        </div>
+      `;
+  }
 }
 
 // =====================================================
@@ -623,6 +669,18 @@ function renderRound2() {
               </div>
             </div>
           </div>
+
+          <!-- Superpower Usage -->
+          ${state.superpowers.round1 ? `
+            <div class="superpower-action mt-3">
+              <button class="btn btn-primary" onclick="useRound1Power()" style="background: linear-gradient(135deg, var(--gold), var(--gold-dark)); border: none; box-shadow: 0 0 15px var(--glow-gold);">
+                🪯 Invoke Sudarshana Chakra
+              </button>
+              <p style="font-size: 0.65rem; color: var(--gold-light); margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">
+                Skip this location with divine power (Single Use)
+              </p>
+            </div>
+          ` : ''}
         </div>
       </div>
       ${renderKrishnaBot(location.hint)}
@@ -645,10 +703,15 @@ window.checkRound2Code = function () {
     input.classList.add('correct');
     state.round2.solved.push(state.round2.currentLocation);
     state.round2.codes[state.round2.currentLocation] = code;
+
+    // Increment Score
+    state.currentTeam.score = (state.currentTeam.score || 0) + 200;
+
     state.round2.currentLocation++;
 
     // Push to Firebase
     dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      score: state.currentTeam.score,
       progress: {
         round1: state.round1,
         round2: state.round2,
@@ -666,7 +729,7 @@ window.checkRound2Code = function () {
   }
 };
 
-function renderRound2Complete() {
+async function renderRound2Complete() {
   const app = document.getElementById('app');
   app.innerHTML = `
     ${renderNav()}
@@ -691,9 +754,8 @@ function renderRound2Complete() {
             Like the Pandavas emerging from Vanvaas, you have proven your worth. The final battle of Kurukshetra awaits.
           </p>
 
-          <div class="round-superpower mb-3">
-            <div class="superpower-label">⟡ Reward ⟡</div>
-            <div class="superpower-name">Gandiva's Arrow</div>
+          <div id="superpower-status-r2" class="mb-3">
+             <div style="text-align:center; color: var(--text-muted); font-style: italic;">Consulting the Akashic record for rewards...</div>
           </div>
 
           <button class="btn btn-sindoor" onclick="router.navigate('/round3')">
@@ -703,6 +765,42 @@ function renderRound2Complete() {
       </div>
     </div>
   `;
+
+  // Claim superpower if 1st
+  const statusEl = document.getElementById('superpower-status-r2');
+  if (state.superpowers.round2) {
+    statusEl.innerHTML = `
+        <div class="round-superpower">
+          <div class="superpower-label">⟡ Divine Favor ⟡</div>
+          <div class="superpower-name">Gandiva's Arrow is in your quiver</div>
+          <p style="font-size: 0.7rem; margin-top: 5px; color: var(--gold-light);">Ready for use in Round III.</p>
+        </div>
+      `;
+    return;
+  }
+
+  const claimResult = await dbAdmin.claimSuperpower('round2', state.currentTeam.id, state.currentTeam.name);
+  if (statusEl) {
+    if (claimResult && claimResult.success) {
+      statusEl.innerHTML = `
+          <div class="round-superpower">
+            <div class="superpower-label">⟡ Divine Favor ⟡</div>
+            <div class="superpower-name">Gandiva's Arrow Assigned</div>
+            <p style="font-size: 0.7rem; margin-top: 5px; color: var(--gold-light);">Use this in Round III for an instant revelation.</p>
+          </div>
+        `;
+      state.superpowers.round2 = true;
+    } else if (claimResult) {
+      statusEl.innerHTML = `
+          <div class="round-superpower claimed">
+            <div class="superpower-label">⟡ Reward Taken ⟡</div>
+            <div class="superpower-name">Already claimed by ${claimResult.claimedBy}</div>
+          </div>
+        `;
+    } else {
+      statusEl.innerHTML = '';
+    }
+  }
 }
 
 // =====================================================
@@ -794,6 +892,18 @@ function renderRound3() {
               </div>
             </div>
           </div>
+
+          <!-- Superpower Usage -->
+          ${state.superpowers.round2 ? `
+            <div class="superpower-action mt-3">
+              <button class="btn btn-sindoor" onclick="useRound2Power()" style="background: linear-gradient(135deg, var(--sindoor), var(--sindoor-dark)); border: none; box-shadow: 0 0 15px var(--sindoor);">
+                🏹 Shoot Gandiva's Arrow
+              </button>
+              <p style="font-size: 0.65rem; color: var(--sindoor); margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">
+                Instantly reveal this clue's location code (Single Use)
+              </p>
+            </div>
+          ` : ''}
         </div>
       </div>
       ${renderKrishnaBot(clue.hint)}
@@ -816,10 +926,15 @@ window.checkRound3Code = function () {
     input.classList.add('correct');
     state.round3.solved.push(state.round3.currentClue);
     state.round3.codes[state.round3.currentClue] = code;
+
+    // Increment Score
+    state.currentTeam.score = (state.currentTeam.score || 0) + 300;
+
     state.round3.currentClue++;
 
     // Push to Firebase
     dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      score: state.currentTeam.score,
       progress: {
         round1: state.round1,
         round2: state.round2,
@@ -835,6 +950,50 @@ window.checkRound3Code = function () {
     input.value = '';
     setTimeout(() => input.classList.remove('wrong'), 500);
   }
+};
+
+window.useRound1Power = function () {
+  if (!confirm("Invoke the Sudarshana Chakra to skip this location? This divine power is single-use.")) return;
+
+  const location = gameData.round2Locations[state.round2.currentLocation];
+  state.round2.solved.push(state.round2.currentLocation);
+  state.round2.codes[state.round2.currentLocation] = "POWER_USED";
+  state.round2.currentLocation++;
+  state.superpowers.round1 = false; // Single use
+
+  dbAdmin.updateTeamProgress(state.currentTeam.id, {
+    progress: {
+      round1: state.round1,
+      round2: state.round2,
+      round3: state.round3,
+      superpowers: state.superpowers
+    },
+    lastLocation: "Used Sudarshana Chakra at " + location.locationName
+  });
+
+  renderRound2();
+};
+
+window.useRound2Power = function () {
+  if (!confirm("Shoot Gandiva's Arrow to instantly decode this location? This divine power is single-use.")) return;
+
+  const clue = gameData.round3Clues[state.round3.currentClue];
+  state.round3.solved.push(state.round3.currentClue);
+  state.round3.codes[state.round3.currentClue] = "POWER_USED";
+  state.round3.currentClue++;
+  state.superpowers.round2 = false; // Single use
+
+  dbAdmin.updateTeamProgress(state.currentTeam.id, {
+    progress: {
+      round1: state.round1,
+      round2: state.round2,
+      round3: state.round3,
+      superpowers: state.superpowers
+    },
+    lastLocation: "Used Gandiva's Arrow at " + clue.locationName
+  });
+
+  renderRound3();
 };
 
 // =====================================================
@@ -1093,6 +1252,74 @@ window.adminDeleteTeam = async (id) => {
   }
 };
 
+window.adminClaimSuperpower = async (e) => {
+  e.preventDefault();
+  const teamId = document.getElementById('claim-team-id').value;
+  const code = document.getElementById('claim-code').value;
+  const round = document.getElementById('claim-round').value;
+
+  // Calculate correct code for R1 based on team's unique riddles
+  const team = (state.allTeams || []).find(t => t.id === teamId);
+  const riddles = team?.progress?.round1?.riddles || gameData.round1Riddles.slice(0, 5);
+  const correctCode = riddles.map(r => r.answer[0]).join('').toUpperCase();
+
+  const btn = e.target.querySelector('button');
+  const orgText = btn.innerHTML;
+  btn.innerText = 'Verifying...';
+
+  const result = await dbAdmin.claimSuperpowerWithCode(round, teamId, code, correctCode);
+
+  if (result && result.success) {
+    alert(`Success! Superpower assigned to ${result.teamName}`);
+    router.navigate('/admin');
+  } else {
+    alert(result?.error || 'Failed to claim superpower');
+    btn.innerHTML = orgText;
+  }
+};
+
+function renderAdminSuperpowerClaim() {
+  const app = document.getElementById('app');
+  if (!state.adminLoggedIn) {
+    router.navigate('/admin');
+    return;
+  }
+
+  app.innerHTML = `
+    ${renderNav('admin')}
+    <div class="page" style="padding-top:40px;">
+      <div class="login-container">
+        <div class="login-card">
+          <h2 class="login-title">Award Superpower</h2>
+          <p class="login-sanskrit">वरदान सभा</p>
+          
+          <form onsubmit="adminClaimSuperpower(event)">
+            <div class="form-group">
+              <label class="form-label">Select Warrior Team</label>
+              <select id="claim-team-id" class="form-input" style="background:var(--bg-dark)" required>
+                <option value="">Choose a team...</option>
+                ${(state.allTeams || []).map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Round</label>
+              <select id="claim-round" class="form-input" style="background:var(--bg-dark)" required>
+                <option value="round1">Round 1: The Signal</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Sacred Code</label>
+              <input id="claim-code" class="form-input" placeholder="Enter code presented by team" required />
+            </div>
+            <button type="submit" class="btn btn-primary login-btn">⟡ Award Divine Power ⟡</button>
+            <button type="button" class="btn btn-outline w-full mt-2" onclick="router.navigate('/admin')">Cancel</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderRound3Complete() {
   if (state.currentTeam) {
     dbAdmin.updateTeamProgress(state.currentTeam.id, {
@@ -1137,6 +1364,106 @@ function renderRound3Complete() {
   `;
 }
 
+// =====================================================
+// GLOBAL CLAIM PAGE (PUBLIC)
+// =====================================================
+function renderClaimPage() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav()}
+    <div class="page claim-page">
+      <div class="claim-container">
+        <div class="text-center mb-4">
+          <p class="section-sanskrit">॥ वरदान सिद्धिः ॥</p>
+          <h2 class="section-title">Divine Blessing Portal</h2>
+          <p class="section-subtitle">Enter the Sacred Code from your trial to claim your Reward.</p>
+        </div>
+
+        <div class="riddle-card claim-card">
+          <div class="claim-instruction">
+            Enter your 5-Letter Sacred Code
+          </div>
+          
+          <div class="pin-entry-container" id="pin-entry">
+            <input type="text" maxlength="1" class="pin-box" autofocus />
+            <input type="text" maxlength="1" class="pin-box" />
+            <input type="text" maxlength="1" class="pin-box" />
+            <input type="text" maxlength="1" class="pin-box" />
+            <input type="text" maxlength="1" class="pin-box" />
+          </div>
+
+          <div id="claim-message" class="mt-4 text-center"></div>
+
+          <button class="btn btn-primary mt-4" onclick="handleGlobalClaim()" style="width:100%; justify-content:center;">
+             ⟡ Reveal Divine Reward ⟡
+          </button>
+        </div>
+
+        <div id="claim-result-overlay" class="claim-result-overlay">
+           <div class="claim-success-content">
+              <div class="success-chakra">☸</div>
+              <h2 id="success-team-name">TEAM NAME</h2>
+              <p>HAS ASCENDED!</p>
+              <div class="success-reward">CHAKRA OF SUDARSHANA OBTAINED</div>
+              <p class="success-shloka">॥ यत्र धर्मस्तत्र जयः ॥</p>
+              <button class="btn btn-primary mt-4" onclick="document.getElementById('claim-result-overlay').classList.remove('active')">
+                Continue Quest
+              </button>
+           </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // PIN Entry Logic
+  const boxes = document.querySelectorAll('.pin-box');
+  boxes.forEach((box, i) => {
+    box.addEventListener('input', (e) => {
+      if (box.value.length === 1 && i < boxes.length - 1) {
+        boxes[i + 1].focus();
+      }
+    });
+
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && box.value.length === 0 && i > 0) {
+        boxes[i - 1].focus();
+      }
+      if (e.key === 'Enter') {
+        handleGlobalClaim();
+      }
+    });
+  });
+}
+
+window.handleGlobalClaim = async function () {
+  const boxes = document.querySelectorAll('.pin-box');
+  const code = Array.from(boxes).map(b => b.value).join('').toUpperCase();
+  const msgEl = document.getElementById('claim-message');
+
+  if (code.length < 5) {
+    msgEl.innerHTML = '<span style="color:var(--sindoor)">Code incomplete, warrior.</span>';
+    return;
+  }
+
+  msgEl.innerHTML = '<span style="color:var(--gold)">Consulting the Akashic record...</span>';
+
+  const result = await dbAdmin.claimSuperpowerWithGlobalCode('round1', code);
+
+  if (result && result.success) {
+    const overlay = document.getElementById('claim-result-overlay');
+    const teamEl = document.getElementById('success-team-name');
+    teamEl.innerText = result.teamName;
+    overlay.classList.add('active');
+    msgEl.innerHTML = '';
+    // Clear boxes
+    boxes.forEach(b => b.value = '');
+  } else {
+    msgEl.innerHTML = `<span style="color:var(--sindoor)">${result?.error || 'Claim failed.'}</span>`;
+    boxes.forEach(b => b.classList.add('wrong'));
+    setTimeout(() => boxes.forEach(b => b.classList.remove('wrong')), 500);
+  }
+};
+
 function renderAdmin() {
   const app = document.getElementById('app');
   if (!state.adminLoggedIn) {
@@ -1179,6 +1506,10 @@ function renderAdmin() {
                 <button id="btn-create-game" class="btn btn-primary" style="flex:1" onclick="adminCreateGame()">Init Game</button>
                 <button class="btn btn-outline" style="color:var(--sindoor); border-color:var(--sindoor);" onclick="adminToggleGame(false)">Halt</button>
               </div>
+
+              <button class="btn btn-sindoor" onclick="router.navigate('/admin/superpower')" style="background: linear-gradient(135deg, var(--gold), var(--saffron)); border:none; color:black; font-weight:bold;">
+                ⟡ Award Superpower ⟡
+              </button>
               
               <div style="margin-top:10px;">
                 <p style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; letter-spacing:1px;">Active Phase</p>
@@ -1261,6 +1592,7 @@ function renderAdmin() {
   });
 
   unsubscribeTeams = dbAdmin.listenToTeams((teams) => {
+    state.allTeams = teams; // Store for other pages
     const grid = document.getElementById('admin-teams-grid');
     if (!grid) return;
 

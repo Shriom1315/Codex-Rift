@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getFirestore, collection, addDoc, getDocs, onSnapshot, updateDoc, doc, setDoc } from "firebase/firestore";
+import { gameData } from './data.js';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -36,12 +37,26 @@ export const dbAdmin = {
 
     addTeam: async (teamName, teamCode) => {
         try {
+            const riddlePool = gameData.round1Riddles || [];
+            const assignedRiddles = [...riddlePool].sort(() => Math.random() - 0.5).slice(0, 5);
+
             await addDoc(collection(db, "teams"), {
                 name: teamName,
                 code: teamCode,
                 status: "lobby", // 'lobby', 'qualified', 'disqualified'
                 score: 0,
-                joinedAt: new Date()
+                joinedAt: new Date(),
+                progress: {
+                    round1: {
+                        currentRiddle: 0,
+                        solved: [],
+                        answers: {},
+                        riddles: assignedRiddles
+                    },
+                    round2: { currentLocation: 0, solved: [], codes: {} },
+                    round3: { currentClue: 0, solved: [], codes: {} },
+                    superpowers: { round1: false, round2: false }
+                }
             });
             return true;
         } catch (e) {
@@ -215,5 +230,140 @@ export const dbAdmin = {
             querySnapshot.forEach(d => arr.push({ id: d.id, ...d.data() }));
             callback(arr);
         });
+    },
+
+    claimSuperpower: async (round, teamId, teamName) => {
+        try {
+            const { doc, getDoc, runTransaction } = await import("firebase/firestore");
+            const gameRef = doc(db, "game", "status");
+
+            return await runTransaction(db, async (transaction) => {
+                const gameDoc = await transaction.get(gameRef);
+                if (!gameDoc.exists()) return null;
+
+                const gameData = gameDoc.data();
+                const claimedBy = gameData.superpowersClaimed || {};
+
+                if (!claimedBy[round]) {
+                    // Claim it!
+                    claimedBy[round] = { teamId, teamName, claimedAt: new Date() };
+                    transaction.update(gameRef, { superpowersClaimed: claimedBy });
+
+                    // Update team's superpower list
+                    const teamRef = doc(db, "teams", teamId);
+                    const teamDoc = await transaction.get(teamRef);
+                    const teamData = teamDoc.data();
+                    const currentProgress = teamData.progress || {};
+                    const superpowers = currentProgress.superpowers || { round1: false, round2: false };
+                    superpowers[round] = true;
+
+                    transaction.update(teamRef, {
+                        "progress.superpowers": superpowers,
+                        lastActivityAt: new Date()
+                    });
+
+                    return { success: true, teamName };
+                } else {
+                    return { success: false, claimedBy: claimedBy[round].teamName };
+                }
+            });
+        } catch (e) {
+            console.error("Error claiming superpower: ", e);
+            return null;
+        }
+    },
+
+    claimSuperpowerWithCode: async (round, teamId, enteredCode, correctCode) => {
+        try {
+            const { doc, runTransaction } = await import("firebase/firestore");
+            const gameRef = doc(db, "game", "status");
+
+            if (enteredCode.toUpperCase() !== correctCode.toUpperCase()) {
+                return { success: false, error: "Invalid sacred code" };
+            }
+
+            return await runTransaction(db, async (transaction) => {
+                const gameDoc = await transaction.get(gameRef);
+                if (!gameDoc.exists()) return null;
+
+                const gameData = gameDoc.data();
+                const claimedBy = gameData.superpowersClaimed || {};
+
+                if (!claimedBy[round]) {
+                    // Get team name
+                    const teamRef = doc(db, "teams", teamId);
+                    const teamDoc = await transaction.get(teamRef);
+                    const teamData = teamDoc.data();
+                    const teamName = teamData.name;
+
+                    // Claim it!
+                    claimedBy[round] = { teamId, teamName, claimedAt: new Date() };
+                    transaction.update(gameRef, { superpowersClaimed: claimedBy });
+
+                    // Update team's superpower list
+                    const currentProgress = teamData.progress || {};
+                    const superpowers = currentProgress.superpowers || { round1: false, round2: false };
+                    superpowers[round] = true;
+
+                    transaction.update(teamRef, {
+                        "progress.superpowers": superpowers,
+                        lastActivityAt: new Date()
+                    });
+
+                    return { success: true, teamName };
+                } else {
+                    return { success: false, error: `Already claimed by ${claimedBy[round].teamName}` };
+                }
+            });
+        } catch (e) {
+            console.error("Error claiming superpower with code: ", e);
+            return null;
+        }
+    },
+
+    claimSuperpowerWithGlobalCode: async (round, enteredCode) => {
+        try {
+            const { query, where, collection, getDocs, doc, runTransaction } = await import("firebase/firestore");
+            const gameRef = doc(db, "game", "status");
+
+            const q = query(collection(db, "teams"), where(`progress.round1.secretCode`, "==", enteredCode.toUpperCase()));
+            const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                return { success: false, error: "The code matches no warrior's trial. Try again." };
+            }
+
+            const teamDoc = querySnapshot.docs[0];
+            const teamId = teamDoc.id;
+            const teamData = teamDoc.data();
+            const teamName = teamData.name;
+
+            return await runTransaction(db, async (transaction) => {
+                const gameDocSnapshot = await transaction.get(gameRef);
+                if (!gameDocSnapshot.exists()) return { success: false, error: "Game not initialized" };
+                const gameDocData = gameDocSnapshot.data();
+                const claimedBy = gameDocData.superpowersClaimed || {};
+
+                if (!claimedBy[round]) {
+                    claimedBy[round] = { teamId, teamName, claimedAt: new Date() };
+                    transaction.update(gameRef, { superpowersClaimed: claimedBy });
+
+                    const progress = teamData.progress || {};
+                    const superpowers = progress.superpowers || { round1: false, round2: false };
+                    superpowers[round] = true;
+
+                    transaction.update(doc(db, "teams", teamId), {
+                        "progress.superpowers": superpowers,
+                        lastActivityAt: new Date()
+                    });
+                    return { success: true, teamName };
+                } else {
+                    return { success: false, error: `Too late! The power was already claimed by ${claimedBy[round].teamName}.` };
+                }
+            });
+        } catch (e) {
+            console.error(e);
+            return { success: false, error: "System error while consulting the Akashic records." };
+        }
     }
 };
