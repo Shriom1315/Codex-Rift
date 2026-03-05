@@ -382,18 +382,46 @@ window.handleLogin = async function (e) {
           const oldPowers = JSON.stringify(state.superpowers);
           state.superpowers = updatedTeam.progress.superpowers;
 
-          // Fallback sync from string field if booleans are missing
-          if (updatedTeam.superpower) {
-            if (updatedTeam.superpower.includes("Chakra")) state.superpowers.round1 = true;
-            if (updatedTeam.superpower.includes("Gandiva")) state.superpowers.round2 = true;
-          }
-
           // If powers changed, re-render current page
           if (oldPowers !== JSON.stringify(state.superpowers)) {
             const path = window.router.currentPath;
             if (path === '/round2') renderRound2();
             if (path === '/round3') renderRound3();
             if (path.includes('round1')) renderRound1();
+          }
+        }
+      });
+
+      // Start real-time listener for the Game Status
+      if (window.gameUnsubscribe) window.gameUnsubscribe();
+      window.gameUnsubscribe = dbAdmin.listenToGame((game) => {
+        if (!game) return;
+
+        const oldRound = state.gameStatus?.currentRound;
+        state.gameStatus = game;
+
+        if (!game.isActive) {
+          renderWarEnded("The Sabha has been temporarily halted by the Elders.");
+          return;
+        }
+
+        // Check if team is disqualified
+        if (state.currentTeam?.status === 'disqualified') {
+          renderWarEnded("Your team has been disqualified from the quest.");
+          return;
+        }
+
+        // Auto-navigate if round changed and qualified
+        if (oldRound && oldRound !== game.currentRound) {
+          const targetRound = game.currentRound;
+          // Check if qualified for previous round
+          const prevRound = targetRound - 1;
+          const qualifiedForPrev = game.qualifiedTeams?.[`round${prevRound}`]?.some(t => t.id === state.currentTeam?.id);
+
+          if (qualifiedForPrev) {
+            window.router.navigate(`/round${targetRound}`);
+          } else {
+            renderWarEnded(`Round ${targetRound} has commenced, but your journey ended in the previous trial.`);
           }
         }
       });
@@ -432,6 +460,35 @@ function renderRound1() {
     // All riddles solved — show completion
     renderRound1Complete();
     return;
+  }
+
+  // Check if Admin has started the round
+  if (state.gameStatus && state.gameStatus.currentRound !== 1) {
+    if (state.gameStatus.currentRound > 1) {
+      // Force them to their actual round if they are trying to access R1
+      const target = state.gameStatus.currentRound;
+      const qualifiedForTarget = state.gameStatus.qualifiedTeams?.[`round${target - 1}`]?.some(t => t.id === state.currentTeam?.id);
+      if (qualifiedForTarget) {
+        router.navigate(`/round${target}`);
+        return;
+      }
+    }
+    renderWarEnded("Round I is not currently active in the Sabha.");
+    return;
+  }
+
+  // Check if round is already full
+  if (state.gameStatus) {
+    const limits = state.gameStatus.qualificationLimits || {};
+    const qualified = state.gameStatus.qualifiedTeams || {};
+    if (qualified.round1?.length >= (limits.round1 || 999)) {
+      // Only block if they aren't already qualified
+      const isAlreadyQualified = qualified.round1.some(t => t.id === state.currentTeam?.id);
+      if (!isAlreadyQualified) {
+        renderWarEnded("The Signal has faded. Enough warriors have already qualified for the next stage.");
+        return;
+      }
+    }
   }
 
   // Pulse location to admin
@@ -548,10 +605,20 @@ window.checkRound1Answer = function () {
         superpowers: state.superpowers
       },
       lastLocation: state.round1.currentRiddle >= riddles.length ? 'Round 1 Completed' : 'Round 1 - Riddle ' + state.round1.currentRiddle
+    }).then(async () => {
+      if (state.round1.currentRiddle >= riddles.length) {
+        // Attempt to qualify
+        const res = await dbAdmin.qualifyTeam(1, state.currentTeam.id, state.currentTeam.name);
+        if (res.success) {
+          renderQualified(1, res.position);
+        } else if (res.error === 'SLOTS_FULL') {
+          renderWarEnded("The first trial has closed. You fought bravely, but others reached the mark first.");
+        }
+      }
     });
 
     setTimeout(() => {
-      renderRound1();
+      if (state.round1.currentRiddle < riddles.length) renderRound1();
     }, 800);
   } else {
     input.classList.add('wrong');
@@ -595,14 +662,15 @@ async function renderRound1Complete() {
              <!-- Status shown here if they already secured it -->
           </div>
 
-          <div style="margin-top:20px; font-size:0.8rem; color:var(--text-muted);">
-            <p>Visit the Claim Page on the shared screen:</p>
-            <p style="color:var(--gold); font-family:monospace; margin-top:5px;">${window.location.origin}/#/claim</p>
-          </div>
-
-          <button class="btn btn-primary mt-3" onclick="router.navigate('/round2')">
-            Proceed to Round II →
-          </button>
+          ${(state.gameStatus?.currentRound >= 2) ? `
+            <button class="btn btn-primary mt-3" onclick="router.navigate('/round2')">
+              Proceed to Round II →
+            </button>
+          ` : `
+            <div style="margin-top:20px; padding:15px; border:1px dashed var(--border-gold); color:var(--gold-light); font-size:0.85rem;">
+              ⚔ Round II has not yet commenced. Prepare for the treasure hunt and wait for the Admin's command.
+            </div>
+          `}
         </div>
 
         <p class="text-center mt-2" style="font-family: var(--font-sanskrit); color: var(--gold); opacity: 0.6;">
@@ -634,6 +702,32 @@ function renderRound2() {
   if (!location) {
     renderRound2Complete();
     return;
+  }
+
+  // Check if Admin has started the round
+  if (!state.gameStatus || state.gameStatus.currentRound < 2) {
+    renderWarEnded("The second trial has not yet been authorized by the Elders. Wait for the signal.");
+    return;
+  }
+
+  // Check if qualified for this specific round (Must have finished R1)
+  const qualifiedForR1 = state.gameStatus.qualifiedTeams?.round1?.some(t => t.id === state.currentTeam?.id);
+  if (!qualifiedForR1) {
+    renderWarEnded("You have not been chosen to enter the second trial. Your journey remains in the previous cycle.");
+    return;
+  }
+
+  // Check if round is already full (slots for Round 2 completion)
+  if (state.gameStatus) {
+    const limits = state.gameStatus.qualificationLimits || {};
+    const qualified = state.gameStatus.qualifiedTeams || {};
+    if (qualified.round2?.length >= (limits.round2 || 999)) {
+      const isAlreadyQualified = qualified.round2.some(t => t.id === state.currentTeam?.id);
+      if (!isAlreadyQualified) {
+        renderWarEnded("The hunt has concluded. Enough teams have secured their place in the final Codex trial.");
+        return;
+      }
+    }
   }
 
   // Pulse location to admin
@@ -767,9 +861,20 @@ window.checkRound2Code = function () {
         superpowers: state.superpowers
       },
       lastLocation: location.locationName
+    }).then(async () => {
+      if (state.round2.currentLocation >= gameData.round2Locations.length) {
+        const res = await dbAdmin.qualifyTeam(2, state.currentTeam.id, state.currentTeam.name);
+        if (res.success) {
+          renderQualified(2, res.position);
+        } else if (res.error === 'SLOTS_FULL') {
+          renderWarEnded("The second trial has closed. Other warriors have filled the scrolls of qualification.");
+        }
+      }
     });
 
-    setTimeout(() => renderRound2(), 800);
+    setTimeout(() => {
+      if (state.round2.currentLocation < gameData.round2Locations.length) renderRound2();
+    }, 800);
   } else {
     input.classList.add('wrong');
     input.value = '';
@@ -806,9 +911,15 @@ async function renderRound2Complete() {
              <div style="text-align:center; color: var(--text-muted); font-style: italic;">Consulting the Akashic record for rewards...</div>
           </div>
 
-          <button class="btn btn-sindoor" onclick="router.navigate('/round3')">
-            ⚔ Enter Kurukshetra — Round III ⚔
-          </button>
+          ${(state.gameStatus?.currentRound >= 3) ? `
+            <button class="btn btn-sindoor" onclick="router.navigate('/round3')">
+              ⚔ Enter Kurukshetra — Round III ⚔
+            </button>
+          ` : `
+            <div style="margin-top:20px; padding:15px; border:1px dashed var(--sindoor); color:var(--sindoor); font-size:0.85rem;">
+              ⚔ The final battle has not yet commenced. Hone your skills and wait for the Elders' command.
+            </div>
+          `}
         </div>
       </div>
     </div>
@@ -862,6 +973,32 @@ function renderRound3() {
   if (!clue) {
     renderRound3Complete();
     return;
+  }
+
+  // Check if Admin has started the round
+  if (!state.gameStatus || state.gameStatus.currentRound < 3) {
+    renderWarEnded("The final battle of Kurukshetra has not yet commenced. Prepare your spirit.");
+    return;
+  }
+
+  // Check if qualified (Must have finished R2)
+  const qualifiedForR2 = state.gameStatus.qualifiedTeams?.round2?.some(t => t.id === state.currentTeam?.id);
+  if (!qualifiedForR2) {
+    renderWarEnded("Only those who solved the Vanvaas trials may enter the final Sabha.");
+    return;
+  }
+
+  // Check if round is already full
+  if (state.gameStatus) {
+    const limits = state.gameStatus.qualificationLimits || {};
+    const qualified = state.gameStatus.qualifiedTeams || {};
+    if (qualified.round3?.length >= (limits.round3 || 999)) {
+      const isAlreadyQualified = qualified.round3.some(t => t.id === state.currentTeam?.id);
+      if (!isAlreadyQualified) {
+        renderWarEnded("The Codex has been claimed. The scrolls are sealed and the final glory is won.");
+        return;
+      }
+    }
   }
 
   // Pulse location to admin
@@ -1014,9 +1151,20 @@ window.checkRound3Code = function () {
         superpowers: state.superpowers
       },
       lastLocation: clue.locationName
+    }).then(async () => {
+      if (state.round3.currentClue >= gameData.round3Clues.length) {
+        const res = await dbAdmin.qualifyTeam(3, state.currentTeam.id, state.currentTeam.name);
+        if (res.success) {
+          renderRound3Complete();
+        } else if (res.error === 'SLOTS_FULL') {
+          renderWarEnded("The Codex was sealed. The final victory belongs to another house.");
+        }
+      }
     });
 
-    setTimeout(() => renderRound3(), 800);
+    setTimeout(() => {
+      if (state.round3.currentClue < gameData.round3Clues.length) renderRound3();
+    }, 800);
   } else {
     input.classList.add('wrong');
     input.value = '';
@@ -1038,6 +1186,7 @@ window.useRound1Power = function () {
     state.superpowers.round1 = false;
 
     dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      superpower: "", // CLEAR STRING FIELD TO PREVENT RE-SYNC
       progress: {
         round1: state.round1,
         round2: state.round2,
@@ -1055,6 +1204,7 @@ window.useRound1Power = function () {
     state.superpowers.round1 = false;
 
     dbAdmin.updateTeamProgress(state.currentTeam.id, {
+      superpower: "", // CLEAR STRING FIELD
       progress: {
         round1: state.round1,
         round2: state.round2,
@@ -1077,6 +1227,7 @@ window.useRound2Power = function () {
   state.superpowers.round2 = false; // Single use
 
   dbAdmin.updateTeamProgress(state.currentTeam.id, {
+    superpower: "", // CLEAR STRING FIELD
     progress: {
       round1: state.round1,
       round2: state.round2,
@@ -1345,6 +1496,16 @@ window.adminDeleteTeam = async (id) => {
   }
 };
 
+window.adminSetQualificationLimit = async (round, limit) => {
+  await dbAdmin.setQualificationLimit(round, limit);
+};
+
+window.adminResetQualifiers = async (round) => {
+  if (confirm(`Reset all qualified teams for Round ${round}?`)) {
+    await dbAdmin.resetQualifiers(round);
+  }
+};
+
 window.adminClaimSuperpower = async (e) => {
   e.preventDefault();
   const teamId = document.getElementById('claim-team-id').value;
@@ -1407,6 +1568,76 @@ function renderAdminSuperpowerClaim() {
             <button type="submit" class="btn btn-primary login-btn">⟡ Award Divine Power ⟡</button>
             <button type="button" class="btn btn-outline w-full mt-2" onclick="router.navigate('/admin')">Cancel</button>
           </form>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderQualified(round, position) {
+  const app = document.getElementById('app');
+  const secretCode = state.round1.secretCode;
+
+  app.innerHTML = `
+    ${renderNav()}
+    <div class="page victory-page">
+      <div class="victory-container">
+        <div class="text-center mb-3">
+          <p class="section-sanskrit">॥ योग्यता सिद्धिः ॥</p>
+          <h2 class="section-title">YOU ARE QUALIFIED!</h2>
+          <span class="status-badge status-completed">Position: #${position}</span>
+        </div>
+        <div class="riddle-card" style="text-align: center;">
+          <p style="color: var(--gold); font-size: 1.2rem; margin-bottom: 20px;">
+            Warrior ${state.currentTeam?.name}, you have proven your worth in Round ${round}.
+          </p>
+
+          ${round === 1 ? `
+            <h3 style="font-family: var(--font-display); color: var(--gold); font-size: 1.3rem; margin-bottom: var(--space-md);">
+              Your Sacred Code
+            </h3>
+            <div class="code-input-group" style="justify-content:center; margin-bottom:20px;">
+              ${secretCode.split('').map(ch => `
+                <div class="code-char" style="display:flex;align-items:center;justify-content:center;pointer-events:none; border-color:var(--gold); color:var(--gold-light); text-shadow:0 0 10px var(--glow-gold); width:40px; height:50px;">${ch}</div>
+              `).join('')}
+            </div>
+            <p style="font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:20px;">
+              Present this code at the Public Claim Sabha to earn your superpower.
+            </p>
+          ` : ''}
+
+          <p style="color: var(--text-secondary); line-height: 1.6;">
+            Wait for the Admin to commence the next stage of the Kurukshetra. 
+            Do not refresh your browser, or you may lose your synchronization with the cosmos.
+          </p>
+          <div class="mt-3">
+             <div class="hero-chakra" style="width:80px; height:80px; margin: 0 auto;">☸</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderWarEnded(reason) {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderNav()}
+    <div class="page signal-page">
+      <div class="signal-container" style="max-width: 600px; margin: 0 auto; text-align: center;">
+        <h2 class="section-title" style="color: var(--sindoor); font-size: 3rem;">WAR HAS ENDED</h2>
+        <p class="section-sanskrit">॥ युद्धस्य विरामः ॥</p>
+        
+        <div class="riddle-card" style="margin-top: 30px; border-color: var(--sindoor);">
+          <p style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 20px;">
+            ${reason || "The time for this trial has passed."}
+          </p>
+          <p style="color: var(--text-secondary); font-style: italic;">
+            "Better luck next time, O Warrior. Even in defeat, there is wisdom to be gained."
+          </p>
+          <button class="btn btn-primary mt-3" onclick="router.navigate('/leaderboard')">
+            Hall of Warriors
+          </button>
         </div>
       </div>
     </div>
@@ -1620,6 +1851,27 @@ function renderAdmin() {
           </div>
 
           <div class="admin-card">
+            <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-accent); font-size:1.1rem;">Quest Limits</h3>
+            <div style="display:flex; flex-direction:column; gap:15px;">
+              ${[1, 2, 3].map(r => `
+                <div style="padding:10px; background:rgba(0,0,0,0.2); border-radius:var(--radius-sm);">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:0.8rem; color:var(--gold-light)">Round ${r} Slots</span>
+                    <div style="display:flex; gap:5px; align-items:center;">
+                      <input type="number" id="limit-r${r}" style="width:50px; background:var(--bg-dark); border:1px solid var(--border); color:var(--gold); padding:2px 5px; font-size:0.8rem;" value="${state.gameStatus?.qualificationLimits?.[`round${r}`] || 0}" />
+                      <button class="btn btn-outline" style="padding:2px 8px; font-size:0.6rem;" onclick="adminSetQualificationLimit(${r}, document.getElementById('limit-r${r}').value)">Set</button>
+                    </div>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; margin-top:8px;">
+                     <span id="limit-label-r${r}" style="font-size:0.6rem; color:var(--text-muted)">Current: ${state.gameStatus?.qualifiedTeams?.[`round${r}`]?.length || 0} / ${state.gameStatus?.qualificationLimits?.[`round${r}`] || 0}</span>
+                     <button style="background:none; border:none; color:var(--sindoor); font-size:0.6rem; cursor:pointer;" onclick="adminResetQualifiers(${r})">Reset List</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="admin-card">
             <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-accent); font-size:1.1rem;">Recruit Team</h3>
             <form onsubmit="adminAddTeam(event)" style="display:flex; flex-direction:column; gap:12px;">
               <input class="form-input" id="admin-team-name" placeholder="Team Name" required style="background:rgba(0,0,0,0.2)" />
@@ -1665,6 +1917,7 @@ function renderAdmin() {
   if (unsubscribeRiddles) unsubscribeRiddles();
 
   unsubscribeGame = dbAdmin.listenToGame((game) => {
+    state.gameStatus = game; // Store globally
     const el = document.getElementById('admin-game-status');
     if (el) {
       if (game) {
@@ -1677,7 +1930,25 @@ function renderAdmin() {
             <span>Current Round:</span> 
             <span style="color:var(--gold)">Round ${game.currentRound}</span>
           </div>
+          <div style="font-size:0.6rem; color:var(--text-muted); margin-top:8px;">
+             ${[1, 2, 3].map(r => `R${r}: ${game.qualifiedTeams?.[`round${r}`]?.length || 0}/${game.qualificationLimits?.[`round${r}`] || 0}`).join(' | ')}
+          </div>
         `;
+
+        // Update individual limit inputs and labels if they exist
+        [1, 2, 3].forEach(r => {
+          const input = document.getElementById(`limit-r${r}`);
+          const label = document.getElementById(`limit-label-r${r}`);
+          const limitVal = game.qualificationLimits?.[`round${r}`] || 0;
+          const currentVal = game.qualifiedTeams?.[`round${r}`]?.length || 0;
+
+          if (input && document.activeElement !== input) {
+            input.value = limitVal;
+          }
+          if (label) {
+            label.innerText = `Current: ${currentVal} / ${limitVal}`;
+          }
+        });
       } else {
         el.innerText = 'Game Status: Offline / Not Created';
       }

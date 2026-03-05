@@ -26,6 +26,8 @@ export const dbAdmin = {
             await setDoc(doc(db, "game", "status"), {
                 isActive: true,
                 currentRound: 1,
+                qualificationLimits: { round1: 10, round2: 5, round3: 1 },
+                qualifiedTeams: { round1: [], round2: [], round3: [] },
                 createdAt: new Date()
             });
             return true;
@@ -373,6 +375,76 @@ export const dbAdmin = {
         } catch (e) {
             console.error(e);
             return { success: false, error: "System error while consulting the Akashic records." };
+        }
+    },
+
+    setQualificationLimit: async (round, limit) => {
+        try {
+            const gameRef = doc(db, "game", "status");
+            const updateField = {};
+            updateField[`qualificationLimits.round${round}`] = parseInt(limit);
+            await updateDoc(gameRef, updateField);
+            return true;
+        } catch (e) {
+            console.error(e);
+            return false;
+        }
+    },
+
+    qualifyTeam: async (round, teamId, teamName) => {
+        try {
+            const { doc, runTransaction } = await import("firebase/firestore");
+            const gameRef = doc(db, "game", "status");
+
+            return await runTransaction(db, async (transaction) => {
+                const gameDoc = await transaction.get(gameRef);
+                if (!gameDoc.exists()) return { success: false, error: "Game not found" };
+
+                const gData = gameDoc.data();
+                const limits = gData.qualificationLimits || { round1: 999, round2: 999, round3: 999 };
+                const qualified = gData.qualifiedTeams || { round1: [], round2: [], round3: [] };
+
+                const roundKey = `round${round}`;
+
+                // Check if team is already in the list
+                const existingIndex = qualified[roundKey].findIndex(t => t.id === teamId);
+                if (existingIndex !== -1) {
+                    return { success: true, position: existingIndex + 1 };
+                }
+
+                // Check if slots are available
+                if (qualified[roundKey].length >= (limits[roundKey] || 999)) {
+                    return { success: false, error: "SLOTS_FULL" };
+                }
+
+                // Add to list
+                qualified[roundKey].push({ id: teamId, name: teamName, qualifiedAt: new Date() });
+                transaction.update(gameRef, { qualifiedTeams: qualified });
+
+                // Update team status
+                transaction.update(doc(db, "teams", teamId), {
+                    status: "qualified",
+                    lastActivityAt: new Date()
+                });
+
+                return { success: true, position: qualified[roundKey].length };
+            });
+        } catch (e) {
+            console.error("Qualify error:", e);
+            return { success: false, error: "SYSTEM_ERROR" };
+        }
+    },
+
+    resetQualifiers: async (round) => {
+        try {
+            const gameRef = doc(db, "game", "status");
+            const updateField = {};
+            updateField[`qualifiedTeams.round${round}`] = [];
+            await updateDoc(gameRef, updateField);
+            return true;
+        } catch (e) {
+            console.error(e);
+            return false;
         }
     }
 };
