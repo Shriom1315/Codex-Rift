@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, collection, addDoc, getDocs, onSnapshot, updateDoc, doc, setDoc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, onSnapshot, updateDoc, doc, setDoc, writeBatch } from "firebase/firestore";
 import { gameData } from './data.js';
 
 // Your web app's Firebase configuration
@@ -63,6 +63,43 @@ export const dbAdmin = {
             return true;
         } catch (e) {
             console.error("Error adding team: ", e);
+            return false;
+        }
+    },
+
+    bulkAddTeams: async (teamsList) => {
+        try {
+            const batch = writeBatch(db);
+            const teamsRef = collection(db, "teams");
+            const riddlePool = gameData.round1Riddles || [];
+
+            teamsList.forEach(team => {
+                const assignedRiddles = [...riddlePool].sort(() => Math.random() - 0.5).slice(0, 5);
+                const newTeamRef = doc(teamsRef);
+                batch.set(newTeamRef, {
+                    name: team.name,
+                    code: team.code,
+                    status: "lobby",
+                    score: 0,
+                    joinedAt: new Date(),
+                    progress: {
+                        round1: {
+                            currentRiddle: 0,
+                            solved: [],
+                            answers: {},
+                            riddles: assignedRiddles
+                        },
+                        round2: { currentLocation: 0, solved: [], codes: {} },
+                        round3: { currentClue: 0, solved: [], codes: {} },
+                        superpowers: { round1: false, round2: false }
+                    }
+                });
+            });
+
+            await batch.commit();
+            return true;
+        } catch (e) {
+            console.error("Error bulk adding teams: ", e);
             return false;
         }
     },

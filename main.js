@@ -16,11 +16,58 @@ const state = {
   superpowers: { round1: false, round2: false },
   timer: null,
   timerValue: 0,
+  currentTimerRound: null,
   adminLoggedIn: false,
 };
 
+// --- Persistence Helpers ---
+function saveState() {
+  const stateToSave = {
+    currentTeam: state.currentTeam,
+    round1: state.round1,
+    round2: state.round2,
+    round3: state.round3,
+    superpowers: state.superpowers,
+    timerValue: state.timerValue,
+    currentTimerRound: state.currentTimerRound,
+    adminLoggedIn: state.adminLoggedIn
+  };
+  localStorage.setItem('codex_hunt_session', JSON.stringify(stateToSave));
+}
+
+function loadState() {
+  const saved = localStorage.getItem('codex_hunt_session');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      Object.assign(state, parsed);
+      return true;
+    } catch (e) {
+      console.error("Failed to load state", e);
+    }
+  }
+  return false;
+}
+
+function clearState() {
+  localStorage.removeItem('codex_hunt_session');
+}
+
+window.handleLogout = () => {
+  if (confirm("Are you sure you wish to leave the Sabha? Your progress is saved in the Codex.")) {
+    clearState();
+    state.currentTeam = null;
+    state.timerValue = 0;
+    state.currentTimerRound = null;
+    if (window.teamUnsubscribe) window.teamUnsubscribe();
+    if (window.gameUnsubscribe) window.gameUnsubscribe();
+    window.router.navigate('/');
+    location.reload(); // Hard reload to clear all states and intervals
+  }
+};
+
 // --- Initialize ---
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   createHeroShader('page-shader-canvas');
 
   const router = new Router({
@@ -32,7 +79,7 @@ window.addEventListener('DOMContentLoaded', () => {
     '/round2': () => renderRound2(),
     '/round3': () => renderRound3(),
     '/leaderboard': () => renderLeaderboard(),
-    '/victory': () => renderRound3Complete(),
+    '/victory': () => renderVictory(), // Fixed reference from renderRound3Complete
     '/admin': () => renderAdmin(),
     '/admin/superpower': () => renderAdminSuperpowerClaim(),
     '/claim': () => renderClaimPage(),
@@ -42,8 +89,103 @@ window.addEventListener('DOMContentLoaded', () => {
   window.state = state;
   window.gameData = gameData;
 
+  // Restore session
+  if (loadState()) {
+    if (state.currentTeam) {
+      await initGameListeners(state.currentTeam);
+
+      // Auto-navigate if they land on login or home while already logged in
+      const path = window.location.hash.slice(1) || '/';
+      if (path === '/login' || path === '/') {
+        dbAdmin.getGameStatus().then(game => {
+          if (game && game.isActive) {
+            const round = game.currentRound || 1;
+            router.navigate(`/round${round}`);
+          }
+        });
+      }
+    }
+  }
+
   router.init();
 });
+
+// --- Listeners Setup ---
+async function initGameListeners(team) {
+  if (window.teamUnsubscribe) window.teamUnsubscribe();
+  const { onSnapshot, doc } = await import("firebase/firestore");
+
+  window.teamUnsubscribe = onSnapshot(doc(db, "teams", team.id), (docSnap) => {
+    if (!docSnap.exists()) return;
+    const updatedTeam = docSnap.data();
+
+    // Sync all progress
+    if (updatedTeam.progress) {
+      const oldProgress = JSON.stringify({
+        r1: state.round1,
+        r2: state.round2,
+        r3: state.round3,
+        powers: state.superpowers
+      });
+
+      state.round1 = updatedTeam.progress.round1 || state.round1;
+      state.round2 = updatedTeam.progress.round2 || state.round2;
+      state.round3 = updatedTeam.progress.round3 || state.round3;
+      state.superpowers = updatedTeam.progress.superpowers || state.superpowers;
+
+      if (state.currentTeam) {
+        state.currentTeam.score = updatedTeam.score || state.currentTeam.score;
+      }
+
+      saveState();
+
+      // If progress changed, re-render current page
+      const newProgress = JSON.stringify({
+        r1: state.round1,
+        r2: state.round2,
+        r3: state.round3,
+        powers: state.superpowers
+      });
+
+      if (oldProgress !== newProgress) {
+        const path = window.router.currentPath;
+        if (path === '/round2') renderRound2();
+        else if (path === '/round3') renderRound3();
+        else if (path.includes('round1')) renderRound1();
+      }
+    }
+  });
+
+  if (window.gameUnsubscribe) window.gameUnsubscribe();
+  window.gameUnsubscribe = dbAdmin.listenToGame((game) => {
+    if (!game) return;
+
+    const oldRound = state.gameStatus?.currentRound;
+    state.gameStatus = game;
+
+    if (!game.isActive) {
+      renderWarEnded("The Sabha has been temporarily halted by the Elders.");
+      return;
+    }
+
+    if (state.currentTeam?.status === 'disqualified') {
+      renderWarEnded("Your team has been disqualified from the quest.");
+      return;
+    }
+
+    if (oldRound && oldRound !== game.currentRound) {
+      const targetRound = game.currentRound;
+      const prevRound = targetRound - 1;
+      const qualifiedForPrev = game.qualifiedTeams?.[`round${prevRound}`]?.some(t => t.id === state.currentTeam?.id);
+
+      if (qualifiedForPrev) {
+        window.router.navigate(`/round${targetRound}`);
+      } else {
+        renderWarEnded(`Round ${targetRound} has commenced, but your journey ended in the previous trial.`);
+      }
+    }
+  });
+}
 
 // --- Navigation ---
 function renderNav(activePage = '') {
@@ -60,20 +202,33 @@ function renderNav(activePage = '') {
         </a>
         <a class="nav-link ${activePage === 'about' ? 'active' : ''}" onclick="router.navigate('/about')">
           <span class="nav-icon">✧</span>
-          <span class="nav-text">Quest</span>
+          <span class="nav-text">About</span>
         </a>
-        <a class="nav-link ${activePage === 'login' ? 'active' : ''}" onclick="router.navigate('/login')">
-          <span class="nav-icon">✦</span>
-          <span class="nav-text">Sabha</span>
-        </a>
+        ${state.currentTeam ? `
+          <a class="nav-link ${activePage === 'login' ? 'active' : ''}" onclick="const r = state.gameStatus?.currentRound || 1; router.navigate('/round' + r)">
+            <span class="nav-icon">✦</span>
+            <span class="nav-text">Round ${state.gameStatus?.currentRound || 1}</span>
+          </a>
+        ` : `
+          <a class="nav-link ${activePage === 'login' ? 'active' : ''}" onclick="router.navigate('/login')">
+            <span class="nav-icon">✦</span>
+            <span class="nav-text">Sabha</span>
+          </a>
+        `}
         <a class="nav-link ${activePage === 'rules' ? 'active' : ''}" onclick="router.navigate('/rules')">
           <span class="nav-icon">◈</span>
           <span class="nav-text">Rules</span>
         </a>
         <a class="nav-link ${activePage === 'leaderboard' ? 'active' : ''}" onclick="router.navigate('/leaderboard')">
           <span class="nav-icon">☸</span>
-          <span class="nav-text">Warriors</span>
+          <span class="nav-text">Ranks</span>
         </a>
+        ${state.currentTeam ? `
+          <a class="nav-link" onclick="handleLogout()" style="color: var(--sindoor);">
+            <span class="nav-icon">⎋</span>
+            <span class="nav-text">Exit</span>
+          </a>
+        ` : ''}
       </div>
     </nav>
     <div class="sanskrit-ticker">
@@ -281,6 +436,12 @@ function renderRules() {
 // LOGIN PAGE
 // =====================================================
 function renderLogin() {
+  if (state.currentTeam) {
+    const round = state.gameStatus?.currentRound || 1;
+    router.navigate(`/round${round}`);
+    return;
+  }
+
   const app = document.getElementById('app');
   app.innerHTML = `
     ${renderNav('login')}
@@ -350,82 +511,26 @@ window.handleLogin = async function (e) {
         state.superpowers = team.progress.superpowers || state.superpowers;
       }
 
-      // FALLBACK: Sync boolean flags from the 'superpower' string field (for demo data/manual awards)
+      // FALLBACK: Sync boolean flags
       if (team.superpower) {
         if (team.superpower.includes("Chakra")) state.superpowers.round1 = true;
         if (team.superpower.includes("Gandiva")) state.superpowers.round2 = true;
       }
 
-      // Initialize unique riddles for Round 1 if not exists
+      // Initialize unique riddles for Round 1
       if (!state.round1.riddles || state.round1.riddles.length > 5) {
-        // Shuffle riddles for this team and pick 5
         const pool = gameData.round1Riddles || [];
         state.round1.riddles = [...pool].sort(() => Math.random() - 0.5).slice(0, 5);
         state.round1.shuffled = true;
-
-        // Update database with the assigned riddles
         dbAdmin.updateTeamProgress(team.id, { "progress.round1": state.round1 });
       }
 
+      saveState();
+
+      // Start real-time listeners
+      await initGameListeners(team);
+
       const round = game.currentRound || 1;
-
-      // Start real-time listener for this team's progress (syncs superpowers instantly)
-      if (window.teamUnsubscribe) window.teamUnsubscribe();
-      const { onSnapshot, doc } = await import("firebase/firestore");
-
-      window.teamUnsubscribe = onSnapshot(doc(db, "teams", team.id), (docSnap) => {
-        if (!docSnap.exists()) return;
-        const updatedTeam = docSnap.data();
-
-        // Sync superpowers
-        if (updatedTeam.progress && updatedTeam.progress.superpowers) {
-          const oldPowers = JSON.stringify(state.superpowers);
-          state.superpowers = updatedTeam.progress.superpowers;
-
-          // If powers changed, re-render current page
-          if (oldPowers !== JSON.stringify(state.superpowers)) {
-            const path = window.router.currentPath;
-            if (path === '/round2') renderRound2();
-            if (path === '/round3') renderRound3();
-            if (path.includes('round1')) renderRound1();
-          }
-        }
-      });
-
-      // Start real-time listener for the Game Status
-      if (window.gameUnsubscribe) window.gameUnsubscribe();
-      window.gameUnsubscribe = dbAdmin.listenToGame((game) => {
-        if (!game) return;
-
-        const oldRound = state.gameStatus?.currentRound;
-        state.gameStatus = game;
-
-        if (!game.isActive) {
-          renderWarEnded("The Sabha has been temporarily halted by the Elders.");
-          return;
-        }
-
-        // Check if team is disqualified
-        if (state.currentTeam?.status === 'disqualified') {
-          renderWarEnded("Your team has been disqualified from the quest.");
-          return;
-        }
-
-        // Auto-navigate if round changed and qualified
-        if (oldRound && oldRound !== game.currentRound) {
-          const targetRound = game.currentRound;
-          // Check if qualified for previous round
-          const prevRound = targetRound - 1;
-          const qualifiedForPrev = game.qualifiedTeams?.[`round${prevRound}`]?.some(t => t.id === state.currentTeam?.id);
-
-          if (qualifiedForPrev) {
-            window.router.navigate(`/round${targetRound}`);
-          } else {
-            renderWarEnded(`Round ${targetRound} has commenced, but your journey ended in the previous trial.`);
-          }
-        }
-      });
-
       if (round === 1) router.navigate('/round1');
       else if (round === 2) router.navigate('/round2');
       else if (round === 3) router.navigate('/round3');
@@ -452,7 +557,9 @@ window.handleLogin = async function (e) {
 // ROUND 1: THE SIGNAL
 // =====================================================
 function renderRound1() {
-  const riddles = state.round1.riddles || gameData.round1Riddles;
+  const allRiddles = state.round1.riddles || gameData.round1Riddles;
+  // Always limit to 5 riddles to prevent "infinite questions" fallback
+  const riddles = allRiddles.slice(0, 5);
   const current = state.round1.currentRiddle;
   const riddle = riddles[current];
 
@@ -561,7 +668,7 @@ function renderRound1() {
     </div>
   `;
 
-  startTimer('round1-timer', riddle.hint);
+  startTimer('round1-timer', riddle.hint, 'round1');
 
   // Enter key listener
   document.getElementById('riddle-answer').addEventListener('keypress', (e) => {
@@ -572,7 +679,8 @@ function renderRound1() {
 window.checkRound1Answer = function () {
   const input = document.getElementById('riddle-answer');
   const answer = input.value.trim().toUpperCase();
-  const riddles = state.round1.riddles || gameData.round1Riddles;
+  const allRiddles = state.round1.riddles || gameData.round1Riddles;
+  const riddles = allRiddles.slice(0, 5);
   const riddle = riddles[state.round1.currentRiddle];
 
   if (answer === riddle.answer.toUpperCase()) {
@@ -606,6 +714,7 @@ window.checkRound1Answer = function () {
       },
       lastLocation: state.round1.currentRiddle >= riddles.length ? 'Round 1 Completed' : 'Round 1 - Riddle ' + state.round1.currentRiddle
     }).then(async () => {
+      saveState();
       if (state.round1.currentRiddle >= riddles.length) {
         // Attempt to qualify
         const res = await dbAdmin.qualifyTeam(1, state.currentTeam.id, state.currentTeam.name);
@@ -829,7 +938,7 @@ function renderRound2() {
     </div>
   `;
 
-  startTimer('round2-timer', location.hint);
+  startTimer('round2-timer', location.hint, 'round2');
 
   document.getElementById('location-code').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') checkRound2Code();
@@ -862,6 +971,7 @@ window.checkRound2Code = function () {
       },
       lastLocation: location.locationName
     }).then(async () => {
+      saveState();
       if (state.round2.currentLocation >= gameData.round2Locations.length) {
         const res = await dbAdmin.qualifyTeam(2, state.currentTeam.id, state.currentTeam.name);
         if (res.success) {
@@ -1119,7 +1229,7 @@ function renderRound3() {
     </div>
   `;
 
-  startTimer('round3-timer', clue.hint);
+  startTimer('round3-timer', clue.hint, 'round3');
 
   document.getElementById('codex-code').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') checkRound3Code();
@@ -1152,6 +1262,7 @@ window.checkRound3Code = function () {
       },
       lastLocation: clue.locationName
     }).then(async () => {
+      saveState();
       if (state.round3.currentClue >= gameData.round3Clues.length) {
         const res = await dbAdmin.qualifyTeam(3, state.currentTeam.id, state.currentTeam.name);
         if (res.success) {
@@ -1195,6 +1306,7 @@ window.useRound1Power = function () {
       },
       lastLocation: "Used Sudarshana Chakra at " + location.locationName
     });
+    saveState();
     renderRound2();
   } else if (isRound3) {
     const clue = gameData.round3Clues[state.round3.currentClue];
@@ -1213,6 +1325,7 @@ window.useRound1Power = function () {
       },
       lastLocation: "Used Sudarshana Chakra at " + clue.locationName
     });
+    saveState();
     renderRound3();
   }
 };
@@ -1236,7 +1349,7 @@ window.useRound2Power = function () {
     },
     lastLocation: "Used Gandiva's Arrow at " + clue.locationName
   });
-
+  saveState();
   renderRound3();
 };
 
@@ -1374,18 +1487,21 @@ function renderKrishnaBot(hintText) {
 // =====================================================
 // TIMER
 // =====================================================
-function startTimer(elementId, hintText = null) {
+function startTimer(elementId, hintText = null, roundId = null) {
   if (state.timer) clearInterval(state.timer);
-  state.timerValue = 0;
-  state.krishnaHintAvailable = false;
 
-  state.timer = setInterval(() => {
-    state.timerValue++;
+  // If we changed rounds, reset the timer. Otherwise, keep it.
+  if (roundId && state.currentTimerRound !== roundId) {
+    state.timerValue = 0;
+    state.currentTimerRound = roundId;
+    state.krishnaHintAvailable = false;
+  }
+
+  const updateDisplay = () => {
     const mins = String(Math.floor(state.timerValue / 60)).padStart(2, '0');
     const secs = String(state.timerValue % 60).padStart(2, '0');
     const el = document.getElementById(elementId);
     if (el) el.textContent = `${mins}:${secs}`;
-    else clearInterval(state.timer);
 
     // Show Krishna Hint after 5 mins (300 sec)
     if (state.timerValue >= 300 && hintText && !state.krishnaHintAvailable) {
@@ -1404,6 +1520,15 @@ function startTimer(elementId, hintText = null) {
            `;
       }
     }
+  };
+
+  updateDisplay();
+
+  state.timer = setInterval(() => {
+    state.timerValue++;
+    updateDisplay();
+    // Save state every 10 seconds to avoid too many writes but keep it fresh
+    if (state.timerValue % 10 === 0) saveState();
   }, 1000);
 }
 
@@ -1466,6 +1591,40 @@ window.adminAddTeam = async (e) => {
   } else {
     alert('Failed to add team');
   }
+};
+
+window.adminBulkAddTeams = async (e) => {
+  e.preventDefault();
+  const rawData = document.getElementById('admin-bulk-data').value;
+  const lines = rawData.split('\n').filter(line => line.trim() !== '');
+
+  const teams = lines.map(line => {
+    // Split by tab, pipe, or comma
+    const parts = line.split(/[\t|,|]/);
+    if (parts.length < 2) return null;
+    return {
+      code: parts[0].trim(),
+      name: parts[1].trim()
+    };
+  }).filter(t => t !== null);
+
+  if (teams.length === 0) {
+    alert("No valid team data found. Ensure each line has 'Event Code [tab/comma] Team Name'");
+    return;
+  }
+
+  const btn = e.target.querySelector('button');
+  const orgText = btn.innerText;
+  btn.innerText = `Enlisting ${teams.length} teams...`;
+
+  const success = await dbAdmin.bulkAddTeams(teams);
+  if (success) {
+    document.getElementById('admin-bulk-data').value = '';
+    alert(`${teams.length} Teams Added Successfully!`);
+  } else {
+    alert('Failed to batch enlist teams.');
+  }
+  btn.innerText = orgText;
 };
 
 window.adminSetStatus = async (id, status) => {
@@ -1877,6 +2036,15 @@ function renderAdmin() {
               <input class="form-input" id="admin-team-name" placeholder="Team Name" required style="background:rgba(0,0,0,0.2)" />
               <input class="form-input" id="admin-team-code" placeholder="Secret Access Code" required style="background:rgba(0,0,0,0.2)" />
               <button type="submit" class="btn btn-sindoor">Enlist Warrior Team</button>
+            </form>
+          </div>
+
+          <div class="admin-card">
+            <h3 style="color:var(--gold); margin-bottom:15px; font-family:var(--font-accent); font-size:1.1rem;">Bulk Enlist</h3>
+            <p style="font-size:0.6rem; color:var(--text-muted); margin-bottom:10px;">Format: Code [tab/comma] Name (CSV/Excel support)</p>
+            <form onsubmit="adminBulkAddTeams(event)" style="display:flex; flex-direction:column; gap:12px;">
+              <textarea class="form-input" id="admin-bulk-data" placeholder="EVENTCODE	TEAM NAME..." rows="4" required style="background:rgba(0,0,0,0.2); font-family:monospace; font-size:0.7rem;"></textarea>
+              <button type="submit" class="btn btn-primary">⟡ Batch Enlist ⟡</button>
             </form>
           </div>
         </div>
